@@ -99,6 +99,9 @@ texts = {
         # Errores de consumo
         "consume_error": "Error al procesar tu cálculo. Intenta nuevamente.",
         "consume_expired": "Tu acceso expiró entre la validación y el cálculo. Recarga la página.",
+        "calc_btn_single_used": "🔒 Ya realizaste tu cálculo. Este token de un solo uso ha sido consumido.",
+        "calc_btn_sub_exhausted": "🔒 Has agotado todos tus usos del mes.",
+        "calc_uses_remaining": "🔢 Usos restantes: **{uses}**",
 
         # Calculadora (igual que antes)
         "title": "Calculadora de Deducción por Horas Extras Calificadas (Ley OBBB 2025)",
@@ -258,6 +261,9 @@ texts = {
         # Consume errors
         "consume_error": "Error processing your calculation. Please try again.",
         "consume_expired": "Your access expired between validation and calculation. Please reload the page.",
+        "calc_btn_single_used": "🔒 Your calculation has already been completed. This single-use token has been consumed.",
+        "calc_btn_sub_exhausted": "🔒 You have used all your monthly uses.",
+        "calc_uses_remaining": "🔢 Uses remaining: **{uses}**",
 
         # Calculator
         "title": "Qualified Overtime Deduction Calculator (OBBB Act 2025)",
@@ -507,64 +513,114 @@ def show_landing(reason=None):
     elif reason == "invalid":
         st.error(t_l["token_invalid"])
 
-    # Título landing
-    st.markdown(f"<h2 style='text-align:center;margin-bottom:4px;'>{t_l['landing_title']}</h2>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align:center;color:#666;margin-bottom:32px;'>{t_l['landing_subtitle']}</p>", unsafe_allow_html=True)
+    # Título landing — usa clases CSS con variables Streamlit
+    st.markdown(f"<h2 class='landing-title' style='text-align:center;margin-bottom:4px;'>{t_l['landing_title']}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<p class='landing-subtitle' style='text-align:center;margin-bottom:32px;'>{t_l['landing_subtitle']}</p>", unsafe_allow_html=True)
     st.caption(t_l["landing_disclaimer"])
     st.markdown("---")
 
-    # ── Tarjetas de planes ──
-    col_single, col_sub = st.columns(2, gap="large")
+    # ── Tarjetas de planes — flex para igual altura ──
+    # Usamos un solo bloque HTML con flexbox para que ambas tarjetas tengan la misma altura
+    # independientemente del número de bullets
 
-    # CSS adaptativo — usa variables CSS que responden al tema de Streamlit
+    # CSS usando variables nativas de Streamlit — siempre sincronizado con el tema activo
     st.markdown("""
     <style>
-    /* Tema claro */
-    @media (prefers-color-scheme: light) {
-        .plan-card-text   { color: #1a1a2e !important; }
-        .plan-card-sub    { color: #555 !important; }
-        .plan-card-li     { color: #444 !important; }
-    }
-    /* Tema oscuro */
-    @media (prefers-color-scheme: dark) {
-        .plan-card-text   { color: #f0f0f0 !important; }
-        .plan-card-sub    { color: #aaa !important; }
-        .plan-card-li     { color: #ccc !important; }
-    }
-    /* Fallback por si Streamlit sobreescribe — usa currentColor */
+    /* Variables nativas de Streamlit: var(--text-color), var(--secondary-text-color)
+       Se sincronizan automáticamente con el tema claro/oscuro de la app */
+    .plan-card-text   { color: var(--text-color) !important; }
+    .plan-card-sub    { color: var(--secondary-text-color) !important; }
+    .plan-card-li     { color: var(--text-color) !important; opacity: 0.85; }
     .plan-card-name-single { color: #4da6ff !important; }
     .plan-card-name-sub    { color: #a78bfa !important; }
+    /* Título y subtítulo landing */
+    .landing-title    { color: var(--text-color) !important; }
+    .landing-subtitle { color: var(--secondary-text-color) !important; }
+    /* Tarjetas igual altura usando flex */
+    .plan-cards-row {
+        display: flex;
+        align-items: stretch;
+        gap: 24px;
+    }
+    .plan-card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    /* Banner adaptativo con variables Streamlit */
+    .banner-green {
+        border: 1px solid #28a745;
+        border-radius: 8px;
+        padding: 10px 18px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        font-weight: 500;
+        background: color-mix(in srgb, #28a745 15%, var(--background-color));
+        color: var(--text-color);
+    }
+    .banner-yellow {
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 10px 18px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        font-weight: 500;
+        background: color-mix(in srgb, #ffc107 15%, var(--background-color));
+        color: var(--text-color);
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    with col_single:
-        features_html = ''.join(f'<li class="plan-card-li">{f}</li>' for f in t_l['plan_single_features'])
-        st.markdown(f"""
-        <div style="border:2px solid #1f6fd2;border-radius:12px;padding:28px 24px;text-align:center;height:100%;">
-            <h3 class="plan-card-name-single" style="margin-bottom:4px;">{t_l['plan_single_name']}</h3>
-            <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l['plan_single_price']}</p>
-            <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l['plan_single_desc']}</p>
-            <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
-                {features_html}
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f'<div style="text-align:center;margin-top:16px;"><a href="{STRIPE_SINGLE}" target="_blank" style="display:inline-block;background:#27ae60;color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(39,174,96,0.35);">{t_l["btn_buy_single"]}</a></div>', unsafe_allow_html=True)
+    features_html     = "".join(f'<li class="plan-card-li">{f}</li>' for f in t_l["plan_single_features"])
+    features_html_sub = "".join(f'<li class="plan-card-li">{f}</li>' for f in t_l["plan_sub_features"])
 
-    with col_sub:
-        features_html_sub = ''.join(f'<li class="plan-card-li">{f}</li>' for f in t_l['plan_sub_features'])
-        st.markdown(f"""
-        <div style="border:2px solid #7b61ff;border-radius:12px;padding:28px 24px;text-align:center;height:100%;position:relative;">
-            <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#7b61ff;color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:1px;">POPULAR</div>
-            <h3 class="plan-card-name-sub" style="margin-bottom:4px;">{t_l['plan_sub_name']}</h3>
-            <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l['plan_sub_price']}</p>
-            <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l['plan_sub_desc']}</p>
-            <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
-                {features_html_sub}
-            </ul>
+    st.markdown(f"""
+    <div class="plan-cards-row">
+        <!-- SINGLE -->
+        <div class="plan-card" style="border:2px solid #1f6fd2;border-radius:12px;padding:28px 24px;text-align:center;">
+            <div>
+                <h3 class="plan-card-name-single" style="margin-bottom:4px;">{t_l["plan_single_name"]}</h3>
+                <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l["plan_single_price"]}</p>
+                <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l["plan_single_desc"]}</p>
+                <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                    {features_html}
+                </ul>
+            </div>
+            <div style="text-align:center;margin-top:8px;">
+                <a href="{STRIPE_SINGLE}" target="_blank"
+                   style="display:inline-block;background:#27ae60;color:#fff;text-decoration:none;
+                          padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;
+                          box-shadow:0 4px 14px rgba(39,174,96,0.35);">
+                    {t_l["btn_buy_single"]}
+                </a>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f'<div style="text-align:center;margin-top:16px;"><a href="{STRIPE_SUB}" target="_blank" style="display:inline-block;background:#7b61ff;color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(123,97,255,0.35);">{t_l["btn_buy_sub"]}</a></div>', unsafe_allow_html=True)
+        <!-- SUB -->
+        <div class="plan-card" style="border:2px solid #7b61ff;border-radius:12px;padding:28px 24px;text-align:center;position:relative;">
+            <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#7b61ff;
+                        color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:1px;">
+                POPULAR
+            </div>
+            <div>
+                <h3 class="plan-card-name-sub" style="margin-bottom:4px;">{t_l["plan_sub_name"]}</h3>
+                <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l["plan_sub_price"]}</p>
+                <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l["plan_sub_desc"]}</p>
+                <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                    {features_html_sub}
+                </ul>
+            </div>
+            <div style="text-align:center;margin-top:8px;">
+                <a href="{STRIPE_SUB}" target="_blank"
+                   style="display:inline-block;background:#7b61ff;color:#fff;text-decoration:none;
+                          padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;
+                          box-shadow:0 4px 14px rgba(123,97,255,0.35);">
+                    {t_l["btn_buy_sub"]}
+                </a>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -627,35 +683,7 @@ def show_plan_banner():
     uses_left  = st.session_state.token_uses_left  # sincronizado tras consumo
     exp_date   = fmt_date(expires_at) if expires_at else "—"
 
-    # CSS adaptativo para el banner — funciona en tema claro y oscuro
-    st.markdown("""
-    <style>
-    .banner-green {
-        border: 1px solid #28a745;
-        border-radius: 8px;
-        padding: 10px 18px;
-        margin-bottom: 16px;
-        font-size: 14px;
-        font-weight: 500;
-    }
-    .banner-yellow {
-        border: 1px solid #ffc107;
-        border-radius: 8px;
-        padding: 10px 18px;
-        margin-bottom: 16px;
-        font-size: 14px;
-        font-weight: 500;
-    }
-    @media (prefers-color-scheme: light) {
-        .banner-green  { background: #d4edda; color: #155724; }
-        .banner-yellow { background: #fff3cd; color: #856404; }
-    }
-    @media (prefers-color-scheme: dark) {
-        .banner-green  { background: #1a3d26; color: #6fcf8a; }
-        .banner-yellow { background: #3d2e00; color: #ffd65a; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Banner CSS ya definido en show_landing() — no repetir aquí
 
     if plan_type == "single":
         if st.session_state.token_consumed:
@@ -821,9 +849,17 @@ if eligible:
                 )
 
     # ─────────────────────────────────────────────────────────
-    # BOTÓN CALCULAR — consume token si todo está bien
+    # BOTÓN CALCULAR — lógica según estado del token
     # ─────────────────────────────────────────────────────────
-    if st.button(t["calculate_button"], type="secondary", use_container_width=True):
+    plan_type = st.session_state.token_data.get("type", "single") if st.session_state.token_data else "single"
+
+    # Single consumido → no mostrar botón
+    if plan_type == "single" and st.session_state.token_consumed:
+        st.info(t["calc_btn_single_used"])
+    # Sub agotado → no mostrar botón
+    elif plan_type == "sub" and isinstance(st.session_state.token_uses_left, int) and st.session_state.token_uses_left <= 0:
+        st.error(t["calc_btn_sub_exhausted"])
+    elif st.button(t["calculate_button"], type="secondary", use_container_width=True):
 
         # ── Validaciones ──
         if total_income <= 0:
