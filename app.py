@@ -516,28 +516,51 @@ def show_landing(reason=None):
     # ── Tarjetas de planes ──
     col_single, col_sub = st.columns(2, gap="large")
 
+    # CSS adaptativo — usa variables CSS que responden al tema de Streamlit
+    st.markdown("""
+    <style>
+    /* Tema claro */
+    @media (prefers-color-scheme: light) {
+        .plan-card-text   { color: #1a1a2e !important; }
+        .plan-card-sub    { color: #555 !important; }
+        .plan-card-li     { color: #444 !important; }
+    }
+    /* Tema oscuro */
+    @media (prefers-color-scheme: dark) {
+        .plan-card-text   { color: #f0f0f0 !important; }
+        .plan-card-sub    { color: #aaa !important; }
+        .plan-card-li     { color: #ccc !important; }
+    }
+    /* Fallback por si Streamlit sobreescribe — usa currentColor */
+    .plan-card-name-single { color: #4da6ff !important; }
+    .plan-card-name-sub    { color: #a78bfa !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
     with col_single:
+        features_html = ''.join(f'<li class="plan-card-li">{f}</li>' for f in t_l['plan_single_features'])
         st.markdown(f"""
         <div style="border:2px solid #1f6fd2;border-radius:12px;padding:28px 24px;text-align:center;height:100%;">
-            <h3 style="color:#1f6fd2;margin-bottom:4px;">{t_l['plan_single_name']}</h3>
-            <p style="font-size:36px;font-weight:800;color:#1a1a2e;margin:8px 0;">{t_l['plan_single_price']}</p>
-            <p style="color:#666;font-size:14px;margin-bottom:20px;">{t_l['plan_single_desc']}</p>
-            <ul style="text-align:left;color:#444;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
-                {''.join(f'<li>{f}</li>' for f in t_l['plan_single_features'])}
+            <h3 class="plan-card-name-single" style="margin-bottom:4px;">{t_l['plan_single_name']}</h3>
+            <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l['plan_single_price']}</p>
+            <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l['plan_single_desc']}</p>
+            <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                {features_html}
             </ul>
         </div>
         """, unsafe_allow_html=True)
         st.markdown(f'<div style="text-align:center;margin-top:16px;"><a href="{STRIPE_SINGLE}" target="_blank" style="display:inline-block;background:#27ae60;color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(39,174,96,0.35);">{t_l["btn_buy_single"]}</a></div>', unsafe_allow_html=True)
 
     with col_sub:
+        features_html_sub = ''.join(f'<li class="plan-card-li">{f}</li>' for f in t_l['plan_sub_features'])
         st.markdown(f"""
         <div style="border:2px solid #7b61ff;border-radius:12px;padding:28px 24px;text-align:center;height:100%;position:relative;">
             <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#7b61ff;color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:1px;">POPULAR</div>
-            <h3 style="color:#7b61ff;margin-bottom:4px;">{t_l['plan_sub_name']}</h3>
-            <p style="font-size:36px;font-weight:800;color:#1a1a2e;margin:8px 0;">{t_l['plan_sub_price']}</p>
-            <p style="color:#666;font-size:14px;margin-bottom:20px;">{t_l['plan_sub_desc']}</p>
-            <ul style="text-align:left;color:#444;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
-                {''.join(f'<li>{f}</li>' for f in t_l['plan_sub_features'])}
+            <h3 class="plan-card-name-sub" style="margin-bottom:4px;">{t_l['plan_sub_name']}</h3>
+            <p class="plan-card-text" style="font-size:36px;font-weight:800;margin:8px 0;">{t_l['plan_sub_price']}</p>
+            <p class="plan-card-sub" style="font-size:14px;margin-bottom:20px;">{t_l['plan_sub_desc']}</p>
+            <ul style="text-align:left;font-size:14px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                {features_html_sub}
             </ul>
         </div>
         """, unsafe_allow_html=True)
