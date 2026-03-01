@@ -2,8 +2,8 @@ name: Mantener Streamlit Despierto
 
 on:
   schedule:
-    # Se ejecuta cada 10 horas (formato cron)
-    - cron: '*/1 * * * *'
+    # Se ejecuta cada 5 min (formato cron)
+    - cron: '*/5 * * * *'
 
   workflow_dispatch: # Permite ejecutarlo manualmente para probar
 
