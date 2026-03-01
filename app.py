@@ -102,6 +102,12 @@ texts = {
         "calc_btn_single_used": "🔒 Ya realizaste tu cálculo. Este token de un solo uso ha sido consumido.",
         "calc_btn_sub_exhausted": "🔒 Has agotado todos tus usos del mes.",
         "calc_uses_remaining": "🔢 Usos restantes: **{uses}**",
+        "calc_confirm_check": "Estoy seguro de los datos proporcionados",
+        "calc_btn_buy_more": "¿Necesitas más cálculos? Compra otro plan:",
+        "calc_btn_buy_single_lbl": "Pago por uso — $5",
+        "calc_btn_buy_sub_lbl": "100 usos mensuales — $60/mes",
+        "calc_btn_uses_label_single": "1 uso",
+        "calc_btn_uses_label_sub": "{uses} usos restantes",
 
         # Calculadora (igual que antes)
         "title": "Calculadora de Deducción por Horas Extras Calificadas (Ley OBBB 2025)",
@@ -264,6 +270,12 @@ texts = {
         "calc_btn_single_used": "🔒 Your calculation has already been completed. This single-use token has been consumed.",
         "calc_btn_sub_exhausted": "🔒 You have used all your monthly uses.",
         "calc_uses_remaining": "🔢 Uses remaining: **{uses}**",
+        "calc_confirm_check": "I confirm the provided data is accurate",
+        "calc_btn_buy_more": "Need more calculations? Purchase another plan:",
+        "calc_btn_buy_single_lbl": "Pay per use — $5",
+        "calc_btn_buy_sub_lbl": "Monthly 100 uses — $60/mo",
+        "calc_btn_uses_label_single": "1 use",
+        "calc_btn_uses_label_sub": "{uses} uses remaining",
 
         # Calculator
         "title": "Qualified Overtime Deduction Calculator (OBBB Act 2025)",
@@ -485,12 +497,10 @@ if token and st.session_state.token_valid is None:
 # ─────────────────────────────────────────────────────────────
 st.markdown("""
 <div style='text-align:center; margin-bottom:24px;'>
-    <h1 style="font-size:52px;font-weight:800;letter-spacing:2px;
-        background:linear-gradient(90deg,#1f6fd2,#7b61ff,#e53935);
-        -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:5px;">
-        ZaiOT
+    <h1 style="font-size:52px;font-weight:800;letter-spacing:2px;margin-bottom:5px;">
+        <span style="color:#ff4a66;">Zai</span><span style="color:#747375;">O</span><span style="color:#0282fe;">T</span>
     </h1>
-    <p style="color:#666;font-size:15px;">OVERTIME DEDUCTION CALCULATOR</p>
+    <p style="color:var(--secondary-text-color);font-size:15px;">OVERTIME DEDUCTION CALCULATOR</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -855,120 +865,143 @@ if eligible:
     uses_left  = st.session_state.token_uses_left
     is_single  = plan_type == "single"
 
-    # ── Construir label del botón con usos restantes ──
+    # ── Label dinámico del botón ──
     if is_single:
-        # Single: siempre 1 uso total, mostrar solo si no consumido
-        btn_label = f"{t['calculate_button']} (1 uso)"
+        uses_label = t["calc_btn_uses_label_single"]
     else:
-        # Sub: mostrar usos actualizados dinámicamente
         uses_display = uses_left if isinstance(uses_left, int) else "?"
-        btn_label = t["calc_uses_remaining"].replace("**{uses}**", str(uses_display))
-        btn_label = f"{t['calculate_button']} ({uses_display} usos restantes)"
+        uses_label = t["calc_btn_uses_label_sub"].format(uses=uses_display)
+    btn_label = f"{t['calculate_button']} ({uses_label})"
 
-    # ── Decisión de mostrar botón o mensaje de bloqueo ──
+    # ── Botones de compra reutilizables (nueva pestaña) ──
+    def show_buy_buttons():
+        st.markdown(f"<p style='color:var(--secondary-text-color);font-size:13px;margin-top:12px;'>{t['calc_btn_buy_more']}</p>", unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(
+                f'<a href="{STRIPE_SINGLE}" target="_blank" style="display:block;text-align:center;'
+                f'background:#27ae60;color:#fff;text-decoration:none;padding:10px 16px;'
+                f'border-radius:8px;font-size:14px;font-weight:600;">{t["calc_btn_buy_single_lbl"]}</a>',
+                unsafe_allow_html=True
+            )
+        with col_b:
+            st.markdown(
+                f'<a href="{STRIPE_SUB}" target="_blank" style="display:block;text-align:center;'
+                f'background:#7b61ff;color:#fff;text-decoration:none;padding:10px 16px;'
+                f'border-radius:8px;font-size:14px;font-weight:600;">{t["calc_btn_buy_sub_lbl"]}</a>',
+                unsafe_allow_html=True
+            )
+
+    # ── Decisión: bloquear o mostrar botón ──
     if is_single and st.session_state.token_consumed:
-        # Single ya usado → bloquear para siempre
+        # Single consumido → mensaje + botones de compra
         st.info(t["calc_btn_single_used"])
+        show_buy_buttons()
     elif not is_single and isinstance(uses_left, int) and uses_left <= 0:
-        # Sub sin usos → bloquear
+        # Sub agotado → mensaje + botones de compra
         st.error(t["calc_btn_sub_exhausted"])
-    elif st.button(btn_label, type="secondary", use_container_width=True):
+        show_buy_buttons()
+    else:
+        # ── Checkbox de confirmación — desbloquea el botón Calcular ──
+        confirmed = st.checkbox(t["calc_confirm_check"], key="calc_confirm_checkbox")
 
-        # ── Validaciones (no consumen token) ──
-        if total_income <= 0:
-            st.error(t["error_missing_total_income"])
-            st.stop()
+        if st.button(btn_label, type="secondary", use_container_width=True, disabled=not confirmed):
 
-        if method_choice == t["choose_method_options"][0]:
-            if not (ot_1_5_total > 0 or ot_2_0_total > 0):
-                st.error(t["error_empty_option_a"])
+            # ── Validaciones (no consumen token) ──
+            if total_income <= 0:
+                st.error(t["error_missing_total_income"])
                 st.stop()
-            method_used = t["method_total"]
-            rate_1_5 = rate_2_0 = 0.0
-        else:
-            if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
-                st.error(t["error_empty_option_b"])
+
+            if method_choice == t["choose_method_options"][0]:
+                if not (ot_1_5_total > 0 or ot_2_0_total > 0):
+                    st.error(t["error_empty_option_a"])
+                    st.stop()
+                method_used = t["method_total"]
+                rate_1_5 = rate_2_0 = 0.0
+            else:
+                if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
+                    st.error(t["error_empty_option_b"])
+                    st.stop()
+                method_used = t["method_hours"]
+                rate_1_5 = regular_rate * 1.5
+                rate_2_0 = regular_rate * 2.0
+                ot_1_5_total = ot_hours_1_5 * rate_1_5
+                ot_2_0_total = dt_hours_2_0 * rate_2_0
+
+            # ── Cálculo (no consume token) ──
+            ot_total_paid  = ot_1_5_total + ot_2_0_total
+            ot_1_5_premium = calculate_ot_premium(ot_1_5_total, 1.5, "total")
+            ot_2_0_premium = calculate_ot_premium(ot_2_0_total, 2.0, "total")
+            qoc_gross      = ot_1_5_premium + ot_2_0_premium
+
+            if filing_status == t["filing_status_options"][2]:
+                max_ded, phase_start, phase_range = 25000, 300000, 250000
+            else:
+                max_ded, phase_start, phase_range = 12500, 150000, 125000
+
+            deduction_limit = apply_phaseout(magi=total_income, max_value=max_ded,
+                                             phase_start=phase_start, phase_range=phase_range)
+            total_deduction = min(qoc_gross, deduction_limit)
+            base_salary     = total_income - ot_total_paid
+
+            if base_salary < 0:
+                st.error(t["error_income_less_than_ot"])
                 st.stop()
-            method_used = t["method_hours"]
-            rate_1_5 = regular_rate * 1.5
-            rate_2_0 = regular_rate * 2.0
-            ot_1_5_total = ot_hours_1_5 * rate_1_5
-            ot_2_0_total = dt_hours_2_0 * rate_2_0
 
-        # ── Cálculo (no consume token) ──
-        ot_total_paid  = ot_1_5_total + ot_2_0_total
-        ot_1_5_premium = calculate_ot_premium(ot_1_5_total, 1.5, "total")
-        ot_2_0_premium = calculate_ot_premium(ot_2_0_total, 2.0, "total")
-        qoc_gross      = ot_1_5_premium + ot_2_0_premium
+            # ── CONSUMIR TOKEN ──
+            # Single: solo si no se consumió antes en esta sesión
+            # Sub:    siempre consume — cada cálculo exitoso descuenta 1 uso
+            should_consume = (is_single and not st.session_state.token_consumed) or (not is_single)
 
-        if filing_status == t["filing_status_options"][2]:
-            max_ded, phase_start, phase_range = 25000, 300000, 250000
-        else:
-            max_ded, phase_start, phase_range = 12500, 150000, 125000
+            if should_consume:
+                try:
+                    rc      = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
+                    rc_data = rc.json()
 
-        deduction_limit = apply_phaseout(magi=total_income, max_value=max_ded,
-                                         phase_start=phase_start, phase_range=phase_range)
-        total_deduction = min(qoc_gross, deduction_limit)
-        base_salary     = total_income - ot_total_paid
+                    if not rc_data.get("success"):
+                        reason = rc_data.get("reason", "error")
+                        if reason == "expired":
+                            st.error(t["consume_expired"])
+                        else:
+                            st.error(t["consume_error"])
+                        st.stop()
 
-        if base_salary < 0:
-            st.error(t["error_income_less_than_ot"])
-            st.stop()
-
-        # ── CONSUMIR TOKEN ──
-        # Single: solo si no se consumió antes en esta sesión
-        # Sub:    siempre consume — cada cálculo exitoso descuenta 1 uso
-        should_consume = (is_single and not st.session_state.token_consumed) or (not is_single)
-
-        if should_consume:
-            try:
-                rc      = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
-                rc_data = rc.json()
-
-                if not rc_data.get("success"):
-                    reason = rc_data.get("reason", "error")
-                    if reason == "expired":
-                        st.error(t["consume_expired"])
+                    # ── Actualizar estado local post-consumo ──
+                    if is_single:
+                        # Single: marcar como consumido, no hay uses_left
+                        st.session_state.token_consumed  = True
+                        st.session_state.token_uses_left = None
                     else:
-                        st.error(t["consume_error"])
+                        # Sub: actualizar usos restantes desde la respuesta del worker
+                        st.session_state.token_uses_left = rc_data.get("uses_left")
+
+                except Exception:
+                    st.error(t["consume_error"])
                     st.stop()
 
-                # ── Actualizar estado local post-consumo ──
-                if is_single:
-                    # Single: marcar como consumido, no hay uses_left
-                    st.session_state.token_consumed  = True
-                    st.session_state.token_uses_left = None
-                else:
-                    # Sub: actualizar usos restantes desde la respuesta del worker
-                    st.session_state.token_uses_left = rc_data.get("uses_left")
-
-            except Exception:
-                st.error(t["consume_error"])
-                st.stop()
-
-        # ── Guardar resultados ──
-        st.session_state.results = {
-            "total_income":    total_income,
-            "base_salary":     base_salary,
-            "ot_total_paid":   ot_total_paid,
-            "ot_1_5_total":    ot_1_5_total,
-            "ot_2_0_total":    ot_2_0_total,
-            "ot_1_5_premium":  ot_1_5_premium,
-            "ot_2_0_premium":  ot_2_0_premium,
-            "rate_1_5":        rate_1_5,
-            "rate_2_0":        rate_2_0,
-            "method_used":     method_used,
-            "over_40":         "--" if not over_40       else over_40,
-            "ot_1_5x":         "--" if not ot_1_5x       else ot_1_5x,
-            "ss_check":        "--" if not ss_check       else ss_check,
-            "filing_status":   "--" if not filing_status  else filing_status,
-            "itin_check":      "--" if not itin_check     else itin_check,
-            "qoc_gross":       qoc_gross,
-            "deduction_limit": deduction_limit,
-            "total_deduction": total_deduction,
-        }
-        st.session_state.show_results = True
-        st.rerun()  # rerun para actualizar banner y label del botón inmediatamente
+            # ── Guardar resultados ──
+            st.session_state.results = {
+                "total_income":    total_income,
+                "base_salary":     base_salary,
+                "ot_total_paid":   ot_total_paid,
+                "ot_1_5_total":    ot_1_5_total,
+                "ot_2_0_total":    ot_2_0_total,
+                "ot_1_5_premium":  ot_1_5_premium,
+                "ot_2_0_premium":  ot_2_0_premium,
+                "rate_1_5":        rate_1_5,
+                "rate_2_0":        rate_2_0,
+                "method_used":     method_used,
+                "over_40":         "--" if not over_40       else over_40,
+                "ot_1_5x":         "--" if not ot_1_5x       else ot_1_5x,
+                "ss_check":        "--" if not ss_check       else ss_check,
+                "filing_status":   "--" if not filing_status  else filing_status,
+                "itin_check":      "--" if not itin_check     else itin_check,
+                "qoc_gross":       qoc_gross,
+                "deduction_limit": deduction_limit,
+                "total_deduction": total_deduction,
+            }
+            st.session_state.show_results = True
+            st.rerun()  # rerun para actualizar banner y label del botón inmediatamente
 
 # ─────────────────────────────────────────────────────────────
 # RESULTADOS
