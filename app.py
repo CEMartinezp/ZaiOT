@@ -627,18 +627,47 @@ def show_plan_banner():
     uses_left  = st.session_state.token_uses_left  # sincronizado tras consumo
     exp_date   = fmt_date(expires_at) if expires_at else "—"
 
+    # CSS adaptativo para el banner — funciona en tema claro y oscuro
+    st.markdown("""
+    <style>
+    .banner-green {
+        border: 1px solid #28a745;
+        border-radius: 8px;
+        padding: 10px 18px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    .banner-yellow {
+        border: 1px solid #ffc107;
+        border-radius: 8px;
+        padding: 10px 18px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    @media (prefers-color-scheme: light) {
+        .banner-green  { background: #d4edda; color: #155724; }
+        .banner-yellow { background: #fff3cd; color: #856404; }
+    }
+    @media (prefers-color-scheme: dark) {
+        .banner-green  { background: #1a3d26; color: #6fcf8a; }
+        .banner-yellow { background: #3d2e00; color: #ffd65a; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     if plan_type == "single":
         if st.session_state.token_consumed:
-            # Ya consumido en esta sesión — mostramos como informativo
-            html = f"<div style='background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 18px;margin-bottom:16px;font-size:14px;'>{t['banner_single_used']}</div>"
+            html = f"<div class='banner-yellow'>{t['banner_single_used']}</div>"
         else:
-            html = f"<div style='background:#d4edda;border:1px solid #28a745;border-radius:8px;padding:10px 18px;margin-bottom:16px;font-size:14px;'>{t['banner_single_active'].format(date=exp_date)}</div>"
+            html = f"<div class='banner-green'>{t['banner_single_active'].format(date=exp_date)}</div>"
     else:
         uses = uses_left if uses_left is not None else "?"
-        color_bg  = "#fff3cd" if isinstance(uses, int) and uses <= 10 else "#d4edda"
-        color_brd = "#ffc107" if isinstance(uses, int) and uses <= 10 else "#28a745"
-        tpl = t["banner_sub_low"] if isinstance(uses, int) and uses <= 10 else t["banner_sub_active"]
-        html = f"<div style='background:{color_bg};border:1px solid {color_brd};border-radius:8px;padding:10px 18px;margin-bottom:16px;font-size:14px;'>{tpl.format(uses=uses, date=exp_date)}</div>"
+        is_low = isinstance(uses, int) and uses <= 10
+        css_class = "banner-yellow" if is_low else "banner-green"
+        tpl = t["banner_sub_low"] if is_low else t["banner_sub_active"]
+        html = f"<div class='{css_class}'>{tpl.format(uses=uses, date=exp_date)}</div>"
 
     st.markdown(html, unsafe_allow_html=True)
 
