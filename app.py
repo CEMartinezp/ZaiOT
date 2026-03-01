@@ -849,19 +849,32 @@ if eligible:
                 )
 
     # ─────────────────────────────────────────────────────────
-    # BOTÓN CALCULAR — lógica según estado del token
+    # BOTÓN CALCULAR — lógica según tipo y estado del token
     # ─────────────────────────────────────────────────────────
-    plan_type = st.session_state.token_data.get("type", "single") if st.session_state.token_data else "single"
+    plan_type  = st.session_state.token_data.get("type", "single") if st.session_state.token_data else "single"
+    uses_left  = st.session_state.token_uses_left
+    is_single  = plan_type == "single"
 
-    # Single consumido → no mostrar botón
-    if plan_type == "single" and st.session_state.token_consumed:
+    # ── Construir label del botón con usos restantes ──
+    if is_single:
+        # Single: siempre 1 uso total, mostrar solo si no consumido
+        btn_label = f"{t['calculate_button']} (1 uso)"
+    else:
+        # Sub: mostrar usos actualizados dinámicamente
+        uses_display = uses_left if isinstance(uses_left, int) else "?"
+        btn_label = t["calc_uses_remaining"].replace("**{uses}**", str(uses_display))
+        btn_label = f"{t['calculate_button']} ({uses_display} usos restantes)"
+
+    # ── Decisión de mostrar botón o mensaje de bloqueo ──
+    if is_single and st.session_state.token_consumed:
+        # Single ya usado → bloquear para siempre
         st.info(t["calc_btn_single_used"])
-    # Sub agotado → no mostrar botón
-    elif plan_type == "sub" and isinstance(st.session_state.token_uses_left, int) and st.session_state.token_uses_left <= 0:
+    elif not is_single and isinstance(uses_left, int) and uses_left <= 0:
+        # Sub sin usos → bloquear
         st.error(t["calc_btn_sub_exhausted"])
-    elif st.button(t["calculate_button"], type="secondary", use_container_width=True):
+    elif st.button(btn_label, type="secondary", use_container_width=True):
 
-        # ── Validaciones ──
+        # ── Validaciones (no consumen token) ──
         if total_income <= 0:
             st.error(t["error_missing_total_income"])
             st.stop()
@@ -882,7 +895,7 @@ if eligible:
             ot_1_5_total = ot_hours_1_5 * rate_1_5
             ot_2_0_total = dt_hours_2_0 * rate_2_0
 
-        # ── Cálculo ──
+        # ── Cálculo (no consume token) ──
         ot_total_paid  = ot_1_5_total + ot_2_0_total
         ot_1_5_premium = calculate_ot_premium(ot_1_5_total, 1.5, "total")
         ot_2_0_premium = calculate_ot_premium(ot_2_0_total, 2.0, "total")
@@ -902,51 +915,60 @@ if eligible:
             st.error(t["error_income_less_than_ot"])
             st.stop()
 
-        # ── CONSUMIR TOKEN (solo si aún no se consumió en esta sesión) ──
-        if not st.session_state.token_consumed:
+        # ── CONSUMIR TOKEN ──
+        # Single: solo si no se consumió antes en esta sesión
+        # Sub:    siempre consume — cada cálculo exitoso descuenta 1 uso
+        should_consume = (is_single and not st.session_state.token_consumed) or (not is_single)
+
+        if should_consume:
             try:
-                rc = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
+                rc      = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
                 rc_data = rc.json()
 
                 if not rc_data.get("success"):
                     reason = rc_data.get("reason", "error")
-                    if reason in ("expired",):
+                    if reason == "expired":
                         st.error(t["consume_expired"])
                     else:
                         st.error(t["consume_error"])
                     st.stop()
 
-                # Consumo exitoso — actualizar estado
-                st.session_state.token_consumed   = True
-                st.session_state.token_uses_left  = rc_data.get("uses_left")  # None para single
+                # ── Actualizar estado local post-consumo ──
+                if is_single:
+                    # Single: marcar como consumido, no hay uses_left
+                    st.session_state.token_consumed  = True
+                    st.session_state.token_uses_left = None
+                else:
+                    # Sub: actualizar usos restantes desde la respuesta del worker
+                    st.session_state.token_uses_left = rc_data.get("uses_left")
 
             except Exception:
                 st.error(t["consume_error"])
                 st.stop()
 
-        # ── Guardar resultados y mostrar ──
+        # ── Guardar resultados ──
         st.session_state.results = {
-            "total_income":   total_income,
-            "base_salary":    base_salary,
-            "ot_total_paid":  ot_total_paid,
-            "ot_1_5_total":   ot_1_5_total,
-            "ot_2_0_total":   ot_2_0_total,
-            "ot_1_5_premium": ot_1_5_premium,
-            "ot_2_0_premium": ot_2_0_premium,
-            "rate_1_5":       rate_1_5,
-            "rate_2_0":       rate_2_0,
-            "method_used":    method_used,
-            "over_40":        "--" if not over_40    else over_40,
-            "ot_1_5x":        "--" if not ot_1_5x   else ot_1_5x,
-            "ss_check":       "--" if not ss_check   else ss_check,
-            "filing_status":  "--" if not filing_status else filing_status,
-            "itin_check":     "--" if not itin_check else itin_check,
-            "qoc_gross":      qoc_gross,
+            "total_income":    total_income,
+            "base_salary":     base_salary,
+            "ot_total_paid":   ot_total_paid,
+            "ot_1_5_total":    ot_1_5_total,
+            "ot_2_0_total":    ot_2_0_total,
+            "ot_1_5_premium":  ot_1_5_premium,
+            "ot_2_0_premium":  ot_2_0_premium,
+            "rate_1_5":        rate_1_5,
+            "rate_2_0":        rate_2_0,
+            "method_used":     method_used,
+            "over_40":         "--" if not over_40       else over_40,
+            "ot_1_5x":         "--" if not ot_1_5x       else ot_1_5x,
+            "ss_check":        "--" if not ss_check       else ss_check,
+            "filing_status":   "--" if not filing_status  else filing_status,
+            "itin_check":      "--" if not itin_check     else itin_check,
+            "qoc_gross":       qoc_gross,
             "deduction_limit": deduction_limit,
             "total_deduction": total_deduction,
         }
         st.session_state.show_results = True
-        st.rerun()  # rerun para actualizar el banner inmediatamente
+        st.rerun()  # rerun para actualizar banner y label del botón inmediatamente
 
 # ─────────────────────────────────────────────────────────────
 # RESULTADOS
