@@ -715,40 +715,64 @@ eligible = st.session_state.eligible
 with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     st.info(t["step1_info"])
 
-    # Radio answers are stored in session state so they survive language reruns.
-    # We use on_change callbacks to persist the selected index.
-    def _save(key, widget_key):
-        st.session_state[key] = st.session_state[widget_key]
+    # Persist answers as string values so they survive language reruns.
+    # We look up the integer index from the current language's option list at render time.
+    def _radio_index(saved_key, options):
+        """Return the integer index of the saved value in options, or None if not saved."""
+        saved = st.session_state.get(saved_key)
+        if saved is None:
+            return None
+        # saved may be an index (int) from a previous session or a string value
+        if isinstance(saved, int) and 0 <= saved < len(options):
+            return saved
+        try:
+            return options.index(saved)
+        except ValueError:
+            return None
 
     filing_status = st.radio(
         t["filing_status_label"], t["filing_status_options"],
-        index=st.session_state.get("input_filing_index"),
+        index=_radio_index("input_filing_val", t["filing_status_options"]),
         horizontal=True, disabled=eligible, key="w_filing",
-        on_change=_save, args=("input_filing_index", "w_filing"),
     )
+    st.session_state.input_filing_val = (
+        t["filing_status_options"].index(filing_status) if filing_status is not None else None
+    )
+
     over_40 = st.radio(
         t["over_40_label"], t["answer_options"],
-        index=st.session_state.get("input_over40_index"),
+        index=_radio_index("input_over40_val", t["answer_options"]),
         horizontal=True, disabled=eligible, help=t["over_40_help"], key="w_over40",
-        on_change=_save, args=("input_over40_index", "w_over40"),
     )
+    st.session_state.input_over40_val = (
+        t["answer_options"].index(over_40) if over_40 is not None else None
+    )
+
     ot_1_5x = st.radio(
         t["ot_1_5x_label"], t["answer_options"],
-        index=st.session_state.get("input_ot15x_index"),
+        index=_radio_index("input_ot15x_val", t["answer_options"]),
         horizontal=True, disabled=eligible, help=t["ot_1_5x_help"], key="w_ot15x",
-        on_change=_save, args=("input_ot15x_index", "w_ot15x"),
     )
+    st.session_state.input_ot15x_val = (
+        t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
+    )
+
     ss_check = st.radio(
         t["ss_check_label"], t["answer_options"],
-        index=st.session_state.get("input_ss_index"),
+        index=_radio_index("input_ss_val", t["answer_options"]),
         horizontal=True, disabled=eligible, help=t["ss_check_help"], key="w_ss",
-        on_change=_save, args=("input_ss_index", "w_ss"),
     )
+    st.session_state.input_ss_val = (
+        t["answer_options"].index(ss_check) if ss_check is not None else None
+    )
+
     itin_check = st.radio(
         t["itin_check_label"], t["answer_options"],
-        index=st.session_state.get("input_itin_index"),
+        index=_radio_index("input_itin_val", t["answer_options"]),
         horizontal=True, disabled=eligible, help=t["itin_check_help"], key="w_itin",
-        on_change=_save, args=("input_itin_index", "w_itin"),
+    )
+    st.session_state.input_itin_val = (
+        t["answer_options"].index(itin_check) if itin_check is not None else None
     )
 
     all_answered = all(x is not None for x in [filing_status, over_40, ot_1_5x, ss_check, itin_check])
@@ -768,12 +792,10 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     if eligible:
         st.info(t["eligible_blocked_info"])
         if st.button(t["reiniciar_button"], type="secondary", use_container_width=True):
-            # Clear all eligibility state
             st.session_state.eligible = False
-            for k in ("input_filing_index", "input_over40_index", "input_ot15x_index",
-                      "input_ss_index", "input_itin_index"):
+            for k in ("input_filing_val", "input_over40_val", "input_ot15x_val",
+                      "input_ss_val", "input_itin_val"):
                 st.session_state.pop(k, None)
-            # Also reset downstream progress
             st.session_state.completed_step_2 = False
             st.session_state.show_results     = False
             st.session_state.results          = None
@@ -782,8 +804,8 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     elif all_answered:
         st.warning(t["unlock_message"])
         if st.button(t["reiniciar_button"], type="secondary", use_container_width=True):
-            for k in ("input_filing_index", "input_over40_index", "input_ot15x_index",
-                      "input_ss_index", "input_itin_index"):
+            for k in ("input_filing_val", "input_over40_val", "input_ot15x_val",
+                      "input_ss_val", "input_itin_val"):
                 st.session_state.pop(k, None)
             st.rerun()
 
