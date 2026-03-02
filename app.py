@@ -188,6 +188,17 @@ texts = {
         ],
         "data_column_concept": "Concepto",
         "data_column_value": "Valor",
+        "data_concept_regular_rate":       "Tarifa horaria regular",
+        "data_concept_ot_hours_1_5":       "Horas trabajadas a tiempo y medio",
+        "data_concept_dt_hours_2_0":       "Horas trabajadas a doble tarifa",
+        "data_concept_expected_rate_1_5":  "Tarifa esperada a tiempo y medio (regular × 1.5)",
+        "data_concept_expected_rate_2_0":  "Tarifa esperada a doble tarifa (regular × 2.0)",
+        "data_concept_actual_rate_1_5":    "Tarifa real ingresada a tiempo y medio",
+        "data_concept_actual_rate_2_0":    "Tarifa real ingresada a doble tarifa",
+        "data_concept_rate_source_1_5":    "Origen del total a tiempo y medio",
+        "data_concept_rate_source_2_0":    "Origen del total a doble tarifa",
+        "data_source_calculated":          "Calculado (horas × tarifa)",
+        "data_source_override":            "Total ingresado manualmente (recibo/W-2)",
         "results_tab_title": "Resultados y deducción estimada",
         "total_deduction_label": "Deducción aplicable en la línea 14 del Schedule 1 (Formulario 1040)",
         "total_deduction_delta": "Monto final a deducir de la base imponible",
@@ -374,6 +385,17 @@ texts = {
         ],
         "data_column_concept": "Concept",
         "data_column_value": "Value",
+        "data_concept_regular_rate":       "Regular hourly rate",
+        "data_concept_ot_hours_1_5":       "Hours worked at time-and-a-half",
+        "data_concept_dt_hours_2_0":       "Hours worked at double time",
+        "data_concept_expected_rate_1_5":  "Expected time-and-a-half rate (regular × 1.5)",
+        "data_concept_expected_rate_2_0":  "Expected double-time rate (regular × 2.0)",
+        "data_concept_actual_rate_1_5":    "Actual time-and-a-half rate entered",
+        "data_concept_actual_rate_2_0":    "Actual double-time rate entered",
+        "data_concept_rate_source_1_5":    "Source for time-and-a-half total",
+        "data_concept_rate_source_2_0":    "Source for double-time total",
+        "data_source_calculated":          "Calculated (hours × rate)",
+        "data_source_override":            "Manually entered total (pay stub/W-2)",
         "results_tab_title": "Results and Estimated Deduction",
         "total_deduction_label": "Deduction applicable on line 14 of Schedule 1 (Form 1040)",
         "total_deduction_delta": "Final amount to be deducted from taxable income",
@@ -1043,24 +1065,26 @@ if eligible:
                 method_used = t["method_total"]
                 rate_1_5 = rate_2_0 = 0.0
             else:
-                if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
-                    st.error(t["error_empty_option_b"])
-                    st.stop()
-                method_used = t["method_hours"]
-                
-               # Use actual rates if provided, otherwise fall back to expected
-                rate_1_5 = actual_rate_1_5 if actual_rate_1_5 > 0 else regular_rate * 1.5
-                rate_2_0 = actual_rate_2_0 if actual_rate_2_0 > 0 else regular_rate * 2.0
+                st.error(t["error_empty_option_b"])
+                st.stop()
 
-                # Use YTD override if provided (mismatch case), otherwise calculate from hours
+                method_used = t["method_hours"]
+
+                # Block if mismatch but no override provided
                 if mismatch_1_5 and ytd_override_1_5 <= 0:
                     st.error(t["error_ytd_required_1_5"])
                     st.stop()
                 if mismatch_2_0 and ytd_override_2_0 <= 0:
                     st.error(t["error_ytd_required_2_0"])
                     st.stop()
-                else:
-                    ot_2_0_total = dt_hours_2_0 * rate_2_0
+
+                # Use actual rates if provided, otherwise fall back to expected
+                rate_1_5 = actual_rate_1_5 if actual_rate_1_5 > 0 else regular_rate * 1.5
+                rate_2_0 = actual_rate_2_0 if actual_rate_2_0 > 0 else regular_rate * 2.0
+
+                # Use override total if mismatch, otherwise calculate from hours
+                ot_1_5_total = ytd_override_1_5 if (mismatch_1_5 and ytd_override_1_5 > 0) else ot_hours_1_5 * rate_1_5
+                ot_2_0_total = ytd_override_2_0 if (mismatch_2_0 and ytd_override_2_0 > 0) else dt_hours_2_0 * rate_2_0
 
             # ── Cálculo (no consume token) ──
             ot_total_paid  = ot_1_5_total + ot_2_0_total
@@ -1141,6 +1165,17 @@ if eligible:
                 "qoc_gross":       qoc_gross,
                 "deduction_limit": deduction_limit,
                 "total_deduction": total_deduction,
+                "regular_rate":        regular_rate,
+                "ot_hours_1_5":        ot_hours_1_5,
+                "dt_hours_2_0":        dt_hours_2_0,
+                "expected_rate_1_5":   regular_rate * 1.5 if regular_rate > 0 else 0.0,
+                "expected_rate_2_0":   regular_rate * 2.0 if regular_rate > 0 else 0.0,
+                "actual_rate_1_5":     actual_rate_1_5,
+                "actual_rate_2_0":     actual_rate_2_0,
+                "mismatch_1_5":        mismatch_1_5,
+                "mismatch_2_0":        mismatch_2_0,
+                "override_total_1_5":  ytd_override_1_5,
+                "override_total_2_0":  ytd_override_2_0,
             }
             st.session_state.show_results = True
             st.rerun()  # rerun para actualizar banner y label del botón inmediatamente
@@ -1187,29 +1222,60 @@ if eligible and st.session_state.show_results:
     with tab_data:
         st.subheader(t["data_subtitle"])
         data = st.session_state.results
-        data_summary = {
-            t["data_column_concept"]: t["data_concepts"],
-            t["data_column_value"]: [
-                format_number(data["total_income"],    lang),
-                format_number(data["base_salary"],     lang),
-                format_number(data["ot_1_5_total"],    lang),
-                "--" if not data["ot_2_0_total"]   else format_number(data["ot_2_0_total"],   lang),
-                format_number(data["ot_total_paid"],   lang),
-                format_number(data["ot_1_5_premium"],  lang),
-                "--" if not data["ot_2_0_premium"] else format_number(data["ot_2_0_premium"], lang),
-                "--" if not data["rate_1_5"]        else format_number(data["rate_1_5"],        lang),
-                "--" if not data["rate_2_0"]        else format_number(data["rate_2_0"],        lang),
-                format_number(data["deduction_limit"], lang),
-                data["method_used"],
-                data["over_40"],
-                data["ot_1_5x"],
-                data["filing_status"],
-                data["ss_check"],
-                data["itin_check"],
+        is_option_b = data["method_used"] == t["method_hours"]
+        concepts = list(t["data_concepts"])  # existing 16 rows
+        values = [
+            format_number(data["total_income"],    lang),
+            format_number(data["base_salary"],     lang),
+            format_number(data["ot_1_5_total"],    lang),
+            "--" if not data["ot_2_0_total"]   else format_number(data["ot_2_0_total"],   lang),
+            format_number(data["ot_total_paid"],   lang),
+            format_number(data["ot_1_5_premium"],  lang),
+            "--" if not data["ot_2_0_premium"] else format_number(data["ot_2_0_premium"], lang),
+            "--" if not data["rate_1_5"]        else format_number(data["rate_1_5"],       lang),
+            "--" if not data["rate_2_0"]        else format_number(data["rate_2_0"],       lang),
+            format_number(data["deduction_limit"], lang),
+            data["method_used"],
+            data["over_40"],
+            data["ot_1_5x"],
+            data["filing_status"],
+            data["ss_check"],
+            data["itin_check"],
+        ]
+            
+        if is_option_b:
+            concepts += [
+                t["data_concept_regular_rate"],
+                t["data_concept_ot_hours_1_5"],
+                t["data_concept_dt_hours_2_0"],
+                t["data_concept_expected_rate_1_5"],
+                t["data_concept_expected_rate_2_0"],
+                t["data_concept_actual_rate_1_5"],
+                t["data_concept_actual_rate_2_0"],
+                t["data_concept_rate_source_1_5"],
+                t["data_concept_rate_source_2_0"],
             ]
+            src_1_5 = t["data_source_override"] if data["mismatch_1_5"] else t["data_source_calculated"]
+            src_2_0 = t["data_source_override"] if data["mismatch_2_0"] else t["data_source_calculated"]
+            values += [
+                format_number(data["regular_rate"],       lang),
+                format_number(data["ot_hours_1_5"],       lang, currency=" "),
+                format_number(data["dt_hours_2_0"],       lang, currency=" "),
+                format_number(data["expected_rate_1_5"],  lang),
+                format_number(data["expected_rate_2_0"],  lang),
+                "--" if not data["actual_rate_1_5"] else format_number(data["actual_rate_1_5"], lang),
+                "--" if not data["actual_rate_2_0"] else format_number(data["actual_rate_2_0"], lang),
+                src_1_5,
+                src_2_0,
+            ]
+
+        data_summary = {
+            t["data_column_concept"]: concepts,
+            t["data_column_value"]:   values,
         }
         st.dataframe(pd.DataFrame(data_summary), use_container_width=True)
-
+    
+    
 # ─────────────────────────────────────────────────────────────
 # PDF
 # ─────────────────────────────────────────────────────────────
