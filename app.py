@@ -719,9 +719,9 @@ def show_landing(reason=None):
 
 # Sin token en URL
 if not token:
-    # show_landing()
-    # st.stop()
-    st.session_state.token_valid = True
+    show_landing()
+    st.stop()
+    # st.session_state.token_valid = True
 
 # Token en URL pero inválido
 if st.session_state.token_valid is False:
