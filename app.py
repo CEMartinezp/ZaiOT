@@ -131,8 +131,6 @@ texts = {
         "itin_check_label": "¿El contribuyente posee un Número de Identificación Tributaria Individual (ITIN)?",
         "ot_1_5x_label": "¿La mayoría de las horas extras se remuneran con una tarifa de tiempo y medio (1.5x la tarifa regular)?",
         "unlock_message": "De acuerdo con las respuestas proporcionadas, es posible que no se cumplan los requisitos para aplicar la deducción. Se recomienda consultar con un contador profesional antes de continuar.",
-        "override_button": "Confirmo que cumplo los requisitos y deseo continuar",
-        "eligible_blocked_info": "**Las respuestas de elegibilidad se encuentran bloqueadas.** Para modificarlas, utilice el botón inferior.",
         "reiniciar_button": "🔄 Reiniciar respuestas de elegibilidad",
         "step2_title": "Paso 2: Ingreso de datos de ingresos y horas extras",
         "step2_info": "Ingrese su ingreso total aproximado del año (incluyendo todos los conceptos gravables).",
@@ -312,8 +310,6 @@ texts = {
         "itin_check_label": "Does the taxpayer have an Individual Taxpayer Identification Number (ITIN)?",
         "ot_1_5x_label": "Are most overtime hours paid at time-and-a-half rate (1.5x the regular rate)?",
         "unlock_message": "Based on the responses provided, the requirements for this deduction may not be met. It is recommended to consult a tax professional before proceeding.",
-        "override_button": "I confirm I meet the requirements and wish to continue",
-        "eligible_blocked_info": "**Eligibility responses are currently locked.** To modify them, use the button below.",
         "reiniciar_button": "🔄 Reset eligibility responses",
         "step2_title": "Step 2: Enter Income and Overtime Data",
         "step2_info": "Please enter your approximate total income for the year (including all taxable income).",
@@ -437,13 +433,29 @@ texts = {
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
 _DEFAULTS = {
-    "eligible_override": False,
+    # Eligibility
+    "eligible": False,
+    # Step 2
     "results": None,
     "show_results": False,
     "completed_step_2": False,
+    "input_total_income": 0.0,
+    # Step 3
+    "input_method_index": None,   # 0 = Option A, 1 = Option B
+    "input_ot_1_5_total": 0.0,
+    "input_ot_2_0_total": 0.0,
+    "input_regular_rate": 0.0,
+    "input_actual_rate_1_5": 0.0,
+    "input_actual_rate_2_0": 0.0,
+    "input_ot_hours_1_5": 0.0,
+    "input_dt_hours_2_0": 0.0,
+    "input_ytd_override_1_5": 0.0,
+    "input_ytd_override_2_0": 0.0,
+    # PDF
     "pdf_bytes": None,
-    "reset_eligibility": 0,
+    # Language
     "language": "es",
+    # Token
     "token_valid": None,
     "token_data": None,
     "token_consumed": False,
@@ -467,7 +479,6 @@ lang_selected = st.selectbox(
 new_lang = "es" if lang_selected in ("Español", "Spanish") else "en"
 if new_lang != lang:
     st.session_state.language = new_lang
-    st.rerun()
 
 t    = texts[st.session_state.language]
 lang = st.session_state.language
@@ -699,24 +710,48 @@ st.warning(t["disclaimer"])
 # ─────────────────────────────────────────────────────────────
 # STEP 1 — ELIGIBILITY
 # ─────────────────────────────────────────────────────────────
-eligible = st.session_state.eligible_override
-_rs = st.session_state.reset_eligibility  # shorthand for radio keys
+eligible = st.session_state.eligible
 
 with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     st.info(t["step1_info"])
-    filing_status = st.radio(t["filing_status_label"], t["filing_status_options"],
-                             index=None, horizontal=True, disabled=eligible,
-                             key=f"filing_{_rs}")
-    over_40    = st.radio(t["over_40_label"],   t["answer_options"], index=None,
-                          horizontal=True, disabled=eligible, help=t["over_40_help"],   key=f"over40_{_rs}")
-    ot_1_5x    = st.radio(t["ot_1_5x_label"],   t["answer_options"], index=None,
-                          horizontal=True, disabled=eligible, help=t["ot_1_5x_help"],   key=f"ot15x_{_rs}")
-    ss_check   = st.radio(t["ss_check_label"],   t["answer_options"], index=None,
-                          horizontal=True, disabled=eligible, help=t["ss_check_help"],   key=f"ss_{_rs}")
-    itin_check = st.radio(t["itin_check_label"], t["answer_options"], index=None,
-                          horizontal=True, disabled=eligible, help=t["itin_check_help"], key=f"itin_{_rs}")
 
-    all_answered  = all(x is not None for x in [filing_status, over_40, ot_1_5x, ss_check, itin_check])
+    # Radio answers are stored in session state so they survive language reruns.
+    # We use on_change callbacks to persist the selected index.
+    def _save(key, widget_key):
+        st.session_state[key] = st.session_state[widget_key]
+
+    filing_status = st.radio(
+        t["filing_status_label"], t["filing_status_options"],
+        index=st.session_state.get("input_filing_index"),
+        horizontal=True, disabled=eligible, key="w_filing",
+        on_change=_save, args=("input_filing_index", "w_filing"),
+    )
+    over_40 = st.radio(
+        t["over_40_label"], t["answer_options"],
+        index=st.session_state.get("input_over40_index"),
+        horizontal=True, disabled=eligible, help=t["over_40_help"], key="w_over40",
+        on_change=_save, args=("input_over40_index", "w_over40"),
+    )
+    ot_1_5x = st.radio(
+        t["ot_1_5x_label"], t["answer_options"],
+        index=st.session_state.get("input_ot15x_index"),
+        horizontal=True, disabled=eligible, help=t["ot_1_5x_help"], key="w_ot15x",
+        on_change=_save, args=("input_ot15x_index", "w_ot15x"),
+    )
+    ss_check = st.radio(
+        t["ss_check_label"], t["answer_options"],
+        index=st.session_state.get("input_ss_index"),
+        horizontal=True, disabled=eligible, help=t["ss_check_help"], key="w_ss",
+        on_change=_save, args=("input_ss_index", "w_ss"),
+    )
+    itin_check = st.radio(
+        t["itin_check_label"], t["answer_options"],
+        index=st.session_state.get("input_itin_index"),
+        horizontal=True, disabled=eligible, help=t["itin_check_help"], key="w_itin",
+        on_change=_save, args=("input_itin_index", "w_itin"),
+    )
+
+    all_answered = all(x is not None for x in [filing_status, over_40, ot_1_5x, ss_check, itin_check])
     auto_eligible = (
         all_answered and
         filing_status != t["filing_status_options"][3] and
@@ -725,21 +760,31 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
         ss_check   == t["answer_options"][0] and
         itin_check == t["answer_options"][1]
     )
-    eligible = auto_eligible or st.session_state.eligible_override
+
+    if auto_eligible and not st.session_state.eligible:
+        st.session_state.eligible = True
+        eligible = True
 
     if eligible:
-        if not st.session_state.eligible_override:
-            st.session_state.eligible_override = True
-            st.rerun()
         st.info(t["eligible_blocked_info"])
         if st.button(t["reiniciar_button"], type="secondary", use_container_width=True):
-            st.session_state.eligible_override = False
-            st.session_state.reset_eligibility += 1
+            # Clear all eligibility state
+            st.session_state.eligible = False
+            for k in ("input_filing_index", "input_over40_index", "input_ot15x_index",
+                      "input_ss_index", "input_itin_index"):
+                st.session_state.pop(k, None)
+            # Also reset downstream progress
+            st.session_state.completed_step_2 = False
+            st.session_state.show_results     = False
+            st.session_state.results          = None
+            st.session_state.pdf_bytes        = None
             st.rerun()
     elif all_answered:
         st.warning(t["unlock_message"])
-        if st.button(t["override_button"], use_container_width=True, type="secondary"):
-            st.session_state.eligible_override = True
+        if st.button(t["reiniciar_button"], type="secondary", use_container_width=True):
+            for k in ("input_filing_index", "input_over40_index", "input_ot15x_index",
+                      "input_ss_index", "input_itin_index"):
+                st.session_state.pop(k, None)
             st.rerun()
 
 # ─────────────────────────────────────────────────────────────
@@ -750,7 +795,12 @@ if not eligible:
 
 with st.expander(f"### {t['step2_title']}", expanded=True):
     st.info(t["step2_info"])
-    total_income = money_input(t["magi_label"], value=0.0, step=1000.0, lang=lang)
+    total_income = money_input(
+        t["magi_label"],
+        value=st.session_state.input_total_income,
+        step=1000.0, lang=lang, key="w_total_income",
+    )
+    st.session_state.input_total_income = total_income
 
     if not st.session_state.completed_step_2:
         if st.button(t["button_continue"], type="secondary", use_container_width=True):
@@ -779,8 +829,16 @@ rate_1_5 = rate_2_0 = 0.0
 
 with st.expander(f"### {t['step3_title']}", expanded=True):
     st.info(t["step3_info"])
-    method_choice = st.radio(t["choose_method_label"], t["choose_method_options"],
-                             index=None, horizontal=True)
+    method_choice = st.radio(
+        t["choose_method_label"], t["choose_method_options"],
+        index=st.session_state.input_method_index,
+        horizontal=True, key="w_method",
+    )
+    # Persist selected index (0 or 1) so it survives language reruns
+    if method_choice is not None:
+        st.session_state.input_method_index = (
+            0 if method_choice == t["choose_method_options"][0] else 1
+        )
 
     if not method_choice:
         st.warning(t["warning_no_method_chosen"])
@@ -789,25 +847,52 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
     if method_choice == t["choose_method_options"][0]:
         # ── Option A ────────────────────────────────────────
         with st.expander(t["option_a_title"], expanded=True):
-            ot_1_5_total = money_input(t["ot_total_1_5_paid_label"], step=100.0,
-                                       help=t["ot_total_1_5_paid_help"], lang=lang)
-            ot_2_0_total = money_input(t["ot_total_2_0_paid_label"], step=100.0,
-                                       help=t["ot_total_2_0_paid_help"], lang=lang)
+            ot_1_5_total = money_input(
+                t["ot_total_1_5_paid_label"], step=100.0,
+                value=st.session_state.input_ot_1_5_total,
+                help=t["ot_total_1_5_paid_help"], lang=lang, key="w_ot_1_5_total",
+            )
+            ot_2_0_total = money_input(
+                t["ot_total_2_0_paid_label"], step=100.0,
+                value=st.session_state.input_ot_2_0_total,
+                help=t["ot_total_2_0_paid_help"], lang=lang, key="w_ot_2_0_total",
+            )
+            st.session_state.input_ot_1_5_total = ot_1_5_total
+            st.session_state.input_ot_2_0_total = ot_2_0_total
     else:
         # ── Option B ────────────────────────────────────────
         with st.expander(t["option_b_title"], expanded=True):
-            regular_rate    = money_input(t["regular_rate_label"],    step=0.5,
-                                          help=t["regular_rate_help"],    lang=lang)
-            actual_rate_1_5 = money_input(t["actual_rate_1_5_label"], step=0.5,
-                                          help=t["actual_rate_1_5_help"], lang=lang,
-                                          key="actual_rate_1_5_input")
-            actual_rate_2_0 = money_input(t["actual_rate_2_0_label"], step=0.5,
-                                          help=t["actual_rate_2_0_help"], lang=lang,
-                                          key="actual_rate_2_0_input")
-            ot_hours_1_5    = money_input(t["ot_hours_1_5_label"],    step=5.0, decimals=2,
-                                          help=t["ot_hours_1_5_help"], lang=lang, currency=" ")
-            dt_hours_2_0    = money_input(t["dt_hours_2_0_label"],    step=5.0, decimals=2,
-                                          help=t["dt_hours_2_0_help"], lang=lang, currency=" ")
+            regular_rate = money_input(
+                t["regular_rate_label"], step=0.5,
+                value=st.session_state.input_regular_rate,
+                help=t["regular_rate_help"], lang=lang, key="w_regular_rate",
+            )
+            actual_rate_1_5 = money_input(
+                t["actual_rate_1_5_label"], step=0.5,
+                value=st.session_state.input_actual_rate_1_5,
+                help=t["actual_rate_1_5_help"], lang=lang, key="w_actual_rate_1_5",
+            )
+            actual_rate_2_0 = money_input(
+                t["actual_rate_2_0_label"], step=0.5,
+                value=st.session_state.input_actual_rate_2_0,
+                help=t["actual_rate_2_0_help"], lang=lang, key="w_actual_rate_2_0",
+            )
+            ot_hours_1_5 = money_input(
+                t["ot_hours_1_5_label"], step=5.0, decimals=2,
+                value=st.session_state.input_ot_hours_1_5,
+                help=t["ot_hours_1_5_help"], lang=lang, currency=" ", key="w_ot_hours_1_5",
+            )
+            dt_hours_2_0 = money_input(
+                t["dt_hours_2_0_label"], step=5.0, decimals=2,
+                value=st.session_state.input_dt_hours_2_0,
+                help=t["dt_hours_2_0_help"], lang=lang, currency=" ", key="w_dt_hours_2_0",
+            )
+            # Persist
+            st.session_state.input_regular_rate     = regular_rate
+            st.session_state.input_actual_rate_1_5  = actual_rate_1_5
+            st.session_state.input_actual_rate_2_0  = actual_rate_2_0
+            st.session_state.input_ot_hours_1_5     = ot_hours_1_5
+            st.session_state.input_dt_hours_2_0     = dt_hours_2_0
 
             expected_rate_1_5 = regular_rate * 1.5 if regular_rate > 0 else 0.0
             expected_rate_2_0 = regular_rate * 2.0 if regular_rate > 0 else 0.0
@@ -834,15 +919,21 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
             # Override inputs (only when mismatch)
             if mismatch_1_5:
                 st.markdown("---")
-                ytd_override_1_5 = money_input(t["ytd_override_label_1_5"], step=100.0,
-                                               help=t["ytd_override_help"], lang=lang,
-                                               key="ytd_override_1_5_input")
+                ytd_override_1_5 = money_input(
+                    t["ytd_override_label_1_5"], step=100.0,
+                    value=st.session_state.input_ytd_override_1_5,
+                    help=t["ytd_override_help"], lang=lang, key="w_ytd_override_1_5",
+                )
+                st.session_state.input_ytd_override_1_5 = ytd_override_1_5
             if mismatch_2_0:
                 if not mismatch_1_5:
                     st.markdown("---")
-                ytd_override_2_0 = money_input(t["ytd_override_label_2_0"], step=100.0,
-                                               help=t["ytd_override_help"], lang=lang,
-                                               key="ytd_override_2_0_input")
+                ytd_override_2_0 = money_input(
+                    t["ytd_override_label_2_0"], step=100.0,
+                    value=st.session_state.input_ytd_override_2_0,
+                    help=t["ytd_override_help"], lang=lang, key="w_ytd_override_2_0",
+                )
+                st.session_state.input_ytd_override_2_0 = ytd_override_2_0
 
 # ─────────────────────────────────────────────────────────────
 # CALCULATE BUTTON
