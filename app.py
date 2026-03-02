@@ -244,8 +244,8 @@ texts = {
         "actual_rate_1_5_help": "Ingrese la tarifa exacta que aparece en su recibo de pago por horas extras a 1.5x. Si no aplica, deje en 0.",
         "actual_rate_2_0_label": "Tarifa real pagada por horas extras a doble tarifa ($ por hora)",
         "actual_rate_2_0_help": "Ingrese la tarifa exacta que aparece en su recibo de pago por horas extras a 2.0x. Si no aplica, deje en 0.",
-        "rate_mismatch_warning_1_5": "⚠️ La tarifa real ingresada (${actual}) difiere de la tarifa esperada (${expected} = tarifa regular × 1.5). Esto puede ocurrir si su empleador usa un método de cálculo diferente.",
-        "rate_mismatch_warning_2_0": "⚠️ La tarifa real ingresada (${actual}) difiere de la tarifa esperada (${expected} = tarifa regular × 2.0). Esto puede ocurrir si su empleador usa un método de cálculo diferente.",
+        "rate_mismatch_warning_1_5": "⚠️ La tarifa real ingresada (\\${actual}) difiere de la tarifa esperada (\\${expected} = tarifa regular × 1.5). Esto puede ocurrir si su empleador usa un método de cálculo diferente.",
+        "rate_mismatch_warning_2_0": "⚠️ La tarifa real ingresada (\\${actual}) difiere de la tarifa esperada (\\${expected} = tarifa regular × 2.0). Esto puede ocurrir si su empleador usa un método de cálculo diferente.",
         "ytd_override_label_1_5": "Ingrese su total YTD de horas extras a tiempo y medio (del W-2 o recibos) ($)",
         "ytd_override_label_2_0": "Ingrese su total YTD de horas extras a doble tarifa (del W-2 o recibos) ($)",
         "ytd_override_help": "Debido a la diferencia de tarifas, use el monto total acumulado del año directamente de su W-2 o recibos de pago para mayor precisión.",
@@ -1065,8 +1065,9 @@ if eligible:
                 method_used = t["method_total"]
                 rate_1_5 = rate_2_0 = 0.0
             else:
-                st.error(t["error_empty_option_b"])
-                st.stop()
+                if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
+                    st.error(t["error_empty_option_b"])
+                    st.stop()
 
                 method_used = t["method_hours"]
 
