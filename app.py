@@ -186,8 +186,8 @@ texts = {
         "error_ytd_required_1_5": "⚠️ La tarifa real de tiempo y medio no coincide con la esperada. Debe ingresar el total del recibo de pago para continuar.",
         "error_ytd_required_2_0": "⚠️ La tarifa real de doble tarifa no coincide con la esperada. Debe ingresar el total del recibo de pago para continuar.",
         # Results / table
-        "data_tab_title": "Resumen de información ingresada",
-        "data_subtitle": "Información proporcionada por el usuario",
+        "data_tab_title": "Desglose completo",
+        "data_subtitle": "Desglose completo del cálculo",
         "data_column_concept": "Concepto",
         "data_column_value": "Valor",
         "results_tab_title": "Resultados y deducción estimada",
@@ -212,8 +212,8 @@ texts = {
         "data_base_salary":               "Salario base estimado",
         "data_method_used":               "Método utilizado",
         "data_ot_total_paid":             "Total pagado por horas extras",
-        "data_src_1_5":                   "Fuente del total a tiempo y medio",
-        "data_src_2_0":                   "Fuente del total a doble tarifa",
+        "data_rate_mismatch":              "Diferencia de tarifa detectada",
+        "data_mismatch_none":             "Ninguna",
         "data_source_calculated":         "Calculado (horas × tarifa)",
         "data_source_override":           "Total ingresado desde recibo de pago",
         "data_premium_1_5":               "Pago adicional a 1.5× (deducible)",
@@ -237,7 +237,7 @@ texts = {
         "pdf_date": "Fecha: {}",
         "pdf_user_name": "Nombre del contribuyente:",
         "pdf_used_count": "Documentos adjuntos:",
-        "pdf_summary_title": "Resumen de información ingresada",
+        "pdf_summary_title": "Desglose completo del cálculo",
         "pdf_evidence_title": "Documentos adjuntos como evidencia",
         "pdf_no_docs": "No se adjuntaron documentos de respaldo.",
         "pdf_docs_attached": "Se adjuntan {} documento(s) como evidencia.",
@@ -367,8 +367,8 @@ texts = {
         "error_ytd_required_1_5": "⚠️ The actual time-and-a-half rate does not match the expected rate. You must enter the total from your pay stub to continue.",
         "error_ytd_required_2_0": "⚠️ The actual double-time rate does not match the expected rate. You must enter the total from your pay stub to continue.",
         # Results / table
-        "data_tab_title": "Summary of Entered Information",
-        "data_subtitle": "Information provided by the user",
+        "data_tab_title": "Full Breakdown",
+        "data_subtitle": "Full Calculation Breakdown",
         "data_column_concept": "Concept",
         "data_column_value": "Value",
         "results_tab_title": "Results and Estimated Deduction",
@@ -393,8 +393,8 @@ texts = {
         "data_base_salary":               "Estimated base salary",
         "data_method_used":               "Calculation method used",
         "data_ot_total_paid":             "Total overtime paid",
-        "data_src_1_5":                   "Source for time-and-a-half total",
-        "data_src_2_0":                   "Source for double-time total",
+        "data_rate_mismatch":              "Rate mismatch detected",
+        "data_mismatch_none":             "None",
         "data_source_calculated":         "Calculated (hours × rate)",
         "data_source_override":           "Total entered from pay stub",
         "data_premium_1_5":               "Overtime premium at 1.5× (deductible)",
@@ -418,7 +418,7 @@ texts = {
         "pdf_date": "Date: {}",
         "pdf_user_name": "Taxpayer name:",
         "pdf_used_count": "Attached documents:",
-        "pdf_summary_title": "Summary of Entered Information",
+        "pdf_summary_title": "Full Calculation Breakdown",
         "pdf_evidence_title": "Supporting Documents Attached",
         "pdf_no_docs": "No supporting documents were attached.",
         "pdf_docs_attached": "{} document(s) attached as evidence.",
@@ -876,7 +876,7 @@ else:
             if not (ot_1_5_total > 0 or ot_2_0_total > 0):
                 st.error(t["error_empty_option_a"]); st.stop()
             method_used = t["method_total"]
-            src_1_5 = src_2_0 = "--"
+            rate_mismatch_label = "--"
 
         else:  # Option B
             if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
@@ -893,17 +893,22 @@ else:
 
             if mismatch_1_5 and ytd_override_1_5 > 0:
                 ot_1_5_total = ytd_override_1_5
-                src_1_5      = t["data_source_override"]
             else:
                 ot_1_5_total = ot_hours_1_5 * rate_1_5
-                src_1_5      = t["data_source_calculated"]
 
             if mismatch_2_0 and ytd_override_2_0 > 0:
                 ot_2_0_total = ytd_override_2_0
-                src_2_0      = t["data_source_override"]
             else:
                 ot_2_0_total = dt_hours_2_0 * rate_2_0
-                src_2_0      = t["data_source_calculated"]
+
+            if mismatch_1_5 and mismatch_2_0:
+                rate_mismatch_label = "1.5× and 2.0×" if lang == "en" else "1.5× y 2.0×"
+            elif mismatch_1_5:
+                rate_mismatch_label = "1.5×"
+            elif mismatch_2_0:
+                rate_mismatch_label = "2.0×"
+            else:
+                rate_mismatch_label = t["data_mismatch_none"]
 
         # ── Core calculation ─────────────────────────────────
         ot_total_paid  = ot_1_5_total + ot_2_0_total
@@ -979,8 +984,7 @@ else:
             "mismatch_2_0":      mismatch_2_0,
             "override_total_1_5":ytd_override_1_5,
             "override_total_2_0":ytd_override_2_0,
-            "src_1_5":           src_1_5,
-            "src_2_0":           src_2_0,
+            "rate_mismatch_label": rate_mismatch_label,
         }
         st.session_state.show_results = True
         st.rerun()
@@ -1063,8 +1067,7 @@ with tab_data:
                   fmt_num(d["actual_rate_1_5"], lang) if d["actual_rate_1_5"] > 0 else "--"),
                  (t["actual_rate_2_0_label"],
                   fmt_num(d["actual_rate_2_0"], lang) if d["actual_rate_2_0"] > 0 else "--"),
-                 (t["data_src_1_5"], d["src_1_5"]),
-                 (t["data_src_2_0"], d["src_2_0"])]
+                 (t["data_rate_mismatch"], d["rate_mismatch_label"])]
 
     rows += [(SECTION, t["section_ot_totals"]),
              (t["ot_total_1_5_paid_label"], fmt_num(d["ot_1_5_total"],  lang)),
@@ -1082,7 +1085,7 @@ with tab_data:
     # Render
     FINAL_KEY  = t["total_deduction_label"]
     SEC_STYLE  = "background-color:#1e3a5f;color:white;font-weight:700"
-    FINAL_STYLE= "background-color:#e8f5e9;font-weight:700"
+    FINAL_STYLE= "background-color:#1a6b3a;color:white;font-weight:700"
     CON, VAL   = t["data_column_concept"], t["data_column_value"]
 
     styled = []
@@ -1227,8 +1230,7 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
             fmt_num(results["actual_rate_1_5"], lang=lang) if results["actual_rate_1_5"] > 0 else "--"),
            (tl["actual_rate_2_0_label"],
             fmt_num(results["actual_rate_2_0"], lang=lang) if results["actual_rate_2_0"] > 0 else "--"),
-           (tl["data_src_1_5"], results["src_1_5"]),
-           (tl["data_src_2_0"], results["src_2_0"])] if is_b else []),
+           (tl["data_rate_mismatch"], results["rate_mismatch_label"])] if is_b else []),
         # OT totals
         (tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"],  lang=lang)),
         (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"],  lang=lang)),
