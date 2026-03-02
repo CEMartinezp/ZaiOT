@@ -719,9 +719,9 @@ def show_landing(reason=None):
 
 # Sin token en URL
 if not token:
-    show_landing()
-    st.stop()
-    # st.session_state.token_valid = True
+    # show_landing()
+    # st.stop()
+    st.session_state.token_valid = True
 
 # Token en URL pero inválido
 if st.session_state.token_valid is False:
@@ -908,16 +908,6 @@ if eligible:
                     t["regular_rate_label"], value=0.0, step=0.5, decimals=2,
                     help=t["regular_rate_help"], lang=lang
                 )
-                ot_hours_1_5 = pretty_money_input(
-                    t["ot_hours_1_5_label"], value=0.0, step=5.0, decimals=2,
-                    help=t["ot_hours_1_5_help"], lang=lang, currency=" "
-                )
-                dt_hours_2_0 = pretty_money_input(
-                    t["dt_hours_2_0_label"], value=0.0, step=5.0, decimals=2,
-                    help=t["dt_hours_2_0_help"], lang=lang, currency=" "
-                )
-
-                # ── Actual rates from pay stub (always visible) ──────
                 actual_rate_1_5 = pretty_money_input(
                     t["actual_rate_1_5_label"], value=0.0, step=0.5, decimals=2,
                     help=t["actual_rate_1_5_help"], lang=lang,
@@ -928,7 +918,14 @@ if eligible:
                     help=t["actual_rate_2_0_help"], lang=lang,
                     key="actual_rate_2_0_input"
                 )
-
+                ot_hours_1_5 = pretty_money_input(
+                    t["ot_hours_1_5_label"], value=0.0, step=5.0, decimals=2,
+                    help=t["ot_hours_1_5_help"], lang=lang, currency=" "
+                )
+                dt_hours_2_0 = pretty_money_input(
+                    t["dt_hours_2_0_label"], value=0.0, step=5.0, decimals=2,
+                    help=t["dt_hours_2_0_help"], lang=lang, currency=" "
+                )
                 # ── Rate comparison logic ────────────────────────────
                 TOLERANCE = 0.01  # 1%
 
