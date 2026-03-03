@@ -131,6 +131,7 @@ texts = {
         "itin_check_label": "¿El contribuyente posee un Número de Identificación Tributaria Individual (ITIN)?",
         "ot_1_5x_label": "¿La mayoría de las horas extras se remuneran con una tarifa de tiempo y medio (1.5x la tarifa regular)?",
         "unlock_message": "De acuerdo con las respuestas proporcionadas, es posible que no se cumplan los requisitos para aplicar la deducción. Se recomienda consultar con un contador profesional antes de continuar.",
+        "eligible_blocked_info": "✅ Sus respuestas cumplen con los requisitos básicos de elegibilidad. Para modificarlas, utilice el botón inferior.",
         "reiniciar_button": "🔄 Reiniciar respuestas de elegibilidad",
         "step2_title": "Paso 2: Ingreso de datos de ingresos y horas extras",
         "step2_info": "Ingrese su ingreso total aproximado del año (incluyendo todos los conceptos gravables).",
@@ -310,6 +311,7 @@ texts = {
         "itin_check_label": "Does the taxpayer have an Individual Taxpayer Identification Number (ITIN)?",
         "ot_1_5x_label": "Are most overtime hours paid at time-and-a-half rate (1.5x the regular rate)?",
         "unlock_message": "Based on the responses provided, the requirements for this deduction may not be met. It is recommended to consult a tax professional before proceeding.",
+        "eligible_blocked_info": "✅ Your answers meet the basic eligibility requirements. To modify them, use the button below.",
         "reiniciar_button": "🔄 Reset eligibility responses",
         "step2_title": "Step 2: Enter Income and Overtime Data",
         "step2_info": "Please enter your approximate total income for the year (including all taxable income).",
@@ -435,6 +437,11 @@ texts = {
 _DEFAULTS = {
     # Eligibility
     "eligible": False,
+    "input_filing_val":  None,
+    "input_over40_val":  None,
+    "input_ot15x_val":   None,
+    "input_ss_val":      None,
+    "input_itin_val":    None,
     # Step 2
     "results": None,
     "show_results": False,
