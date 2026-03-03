@@ -1295,7 +1295,8 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
     pdf.add_page()
     pdf.set_fill_color(30, 100, 200); pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 14)
-    pdf.cell(UW, 11, tl["pdf_title"], align="C", new_x="LMARGIN", new_y="NEXT", fill=True)
+    pdf.multi_cell(UW, 11, tl["pdf_title"], align="C", fill=True,
+                   new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0); pdf.ln(2)
     pdf.set_font("DejaVu", "", 9)
     pdf.cell(UW, 6, tl["pdf_generated_by"], align="C", new_x="LMARGIN", new_y="NEXT")
