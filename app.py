@@ -437,6 +437,7 @@ texts = {
 _DEFAULTS = {
     # Eligibility
     "eligible": False,
+    "reset_counter": 0,
     "input_filing_val":  None,
     "input_over40_val":  None,
     "input_ot15x_val":   None,
@@ -737,10 +738,12 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
         except ValueError:
             return None
 
+    _rc = st.session_state.reset_counter  # bump forces widget recreation
+
     filing_status = st.radio(
         t["filing_status_label"], t["filing_status_options"],
         index=_radio_index("input_filing_val", t["filing_status_options"]),
-        horizontal=True, disabled=eligible, key="w_filing",
+        horizontal=True, disabled=eligible, key=f"w_filing_{_rc}",
     )
     st.session_state.input_filing_val = (
         t["filing_status_options"].index(filing_status) if filing_status is not None else None
@@ -749,7 +752,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     over_40 = st.radio(
         t["over_40_label"], t["answer_options"],
         index=_radio_index("input_over40_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["over_40_help"], key="w_over40",
+        horizontal=True, disabled=eligible, help=t["over_40_help"], key=f"w_over40_{_rc}",
     )
     st.session_state.input_over40_val = (
         t["answer_options"].index(over_40) if over_40 is not None else None
@@ -758,7 +761,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     ot_1_5x = st.radio(
         t["ot_1_5x_label"], t["answer_options"],
         index=_radio_index("input_ot15x_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["ot_1_5x_help"], key="w_ot15x",
+        horizontal=True, disabled=eligible, help=t["ot_1_5x_help"], key=f"w_ot15x_{_rc}",
     )
     st.session_state.input_ot15x_val = (
         t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
@@ -767,7 +770,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     ss_check = st.radio(
         t["ss_check_label"], t["answer_options"],
         index=_radio_index("input_ss_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["ss_check_help"], key="w_ss",
+        horizontal=True, disabled=eligible, help=t["ss_check_help"], key=f"w_ss_{_rc}",
     )
     st.session_state.input_ss_val = (
         t["answer_options"].index(ss_check) if ss_check is not None else None
@@ -776,7 +779,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     itin_check = st.radio(
         t["itin_check_label"], t["answer_options"],
         index=_radio_index("input_itin_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["itin_check_help"], key="w_itin",
+        horizontal=True, disabled=eligible, help=t["itin_check_help"], key=f"w_itin_{_rc}",
     )
     st.session_state.input_itin_val = (
         t["answer_options"].index(itin_check) if itin_check is not None else None
@@ -794,7 +797,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
 
     if auto_eligible and not st.session_state.eligible:
         st.session_state.eligible = True
-        eligible = True
+        st.rerun()
 
     if eligible:
         st.info(t["eligible_blocked_info"])
@@ -804,6 +807,7 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
             for k in ("input_filing_val", "input_over40_val", "input_ot15x_val",
                       "input_ss_val", "input_itin_val"):
                 st.session_state.pop(k, None)
+            st.session_state.reset_counter += 1
             st.rerun()
 
 # ─────────────────────────────────────────────────────────────
