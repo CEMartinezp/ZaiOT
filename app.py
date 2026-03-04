@@ -1,4 +1,4 @@
-﻿import os
+import os
 import streamlit as st
 import pandas as pd
 import requests
@@ -32,7 +32,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────
-# GLOBAL STYLES  (defined once, applied everywhere)
+# GLOBAL STYLES
 # ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -434,20 +434,17 @@ texts = {
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
 _DEFAULTS = {
-    # Eligibility
     "eligible": False,
     "input_filing_val":  None,
     "input_over40_val":  None,
     "input_ot15x_val":   None,
     "input_ss_val":      None,
     "input_itin_val":    None,
-    # Step 2
     "results": None,
     "show_results": False,
     "completed_step_2": False,
     "input_total_income": 0.0,
-    # Step 3
-    "input_method_index": None,   # 0 = Option A, 1 = Option B
+    "input_method_index": None,
     "input_ot_1_5_total": 0.0,
     "input_ot_2_0_total": 0.0,
     "input_regular_rate": 0.0,
@@ -457,23 +454,28 @@ _DEFAULTS = {
     "input_dt_hours_2_0": 0.0,
     "input_ytd_override_1_5": 0.0,
     "input_ytd_override_2_0": 0.0,
-    # PDF
     "pdf_bytes": None,
-    # Language
     "language": "es",
-    # Token
     "token_valid": None,
     "token_data": None,
     "token_consumed": False,
     "token_uses_left": None,
+    # Flag para saber si el idioma ya fue inicializado desde la URL
+    "_lang_from_url_applied": False,
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
 # ─────────────────────────────────────────────────────────────
-# LANGUAGE
+# LANGUAGE — leer ?lang= de la URL solo la primera vez
 # ─────────────────────────────────────────────────────────────
+if not st.session_state._lang_from_url_applied:
+    _url_lang = st.query_params.get("lang")
+    if _url_lang in ("en", "es"):
+        st.session_state.language = _url_lang
+    st.session_state._lang_from_url_applied = True
+
 t    = texts[st.session_state.language]
 lang = st.session_state.language
 
@@ -493,7 +495,6 @@ lang = st.session_state.language
 # HELPERS
 # ─────────────────────────────────────────────────────────────
 def fmt_num(value: float, lang: str, currency="$", decimals=2) -> str:
-    """Format a number with locale-aware separators."""
     if value is None:
         return f"{currency}0"
     s = f"{value:,.{decimals}f}"
@@ -506,7 +507,6 @@ def fmt_date(ts_ms: int) -> str:
 
 def money_input(label, *, value=0.0, step=100.0, decimals=2, key=None, help=None,
                 lang="es", currency="$"):
-    """Number input + live formatted preview."""
     col_in, col_prev = st.columns([1.5, 3])
     with col_in:
         num = st.number_input(label, min_value=0.0, value=value, step=step,
@@ -517,7 +517,6 @@ def money_input(label, *, value=0.0, step=100.0, decimals=2, key=None, help=None
     return num
 
 def show_buy_buttons(t):
-    """Stripe purchase links rendered as buttons."""
     st.markdown(
         f"<p style='color:var(--secondary-text-color);font-size:13px;margin-top:12px;'>"
         f"{t['calc_btn_buy_more']}</p>",
@@ -537,7 +536,7 @@ def show_buy_buttons(t):
                                 label=t["calc_btn_buy_sub_lbl"]), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# TOKEN VALIDATION  (once per session)
+# TOKEN VALIDATION
 # ─────────────────────────────────────────────────────────────
 token = st.query_params.get("token")
 
@@ -561,8 +560,7 @@ if token and st.session_state.token_valid is None:
 # ─────────────────────────────────────────────────────────────
 # LOGO
 # ─────────────────────────────────────────────────────────────
-
-_logo_path = os.path.join(BASE_DIR, "assets", "zaitax_logo.png")  # Ruta del logo.
+_logo_path = os.path.join(BASE_DIR, "assets", "zaitax_logo.png")
 with open(_logo_path, "rb") as _f:
     _logo_b64 = base64.b64encode(_f.read()).decode()
 
@@ -725,14 +723,10 @@ eligible = st.session_state.eligible
 with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     st.info(t["step1_info"])
 
-    # Persist answers as string values so they survive language reruns.
-    # We look up the integer index from the current language's option list at render time.
     def _radio_index(saved_key, options):
-        """Return the integer index of the saved value in options, or None if not saved."""
         saved = st.session_state.get(saved_key)
         if saved is None:
             return None
-        # saved may be an index (int) from a previous session or a string value
         if isinstance(saved, int) and 0 <= saved < len(options):
             return saved
         try:
@@ -833,8 +827,7 @@ if not st.session_state.completed_step_2:
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
-# STEP 3 — METHOD  (variables initialised here so calculate
-#                   button always has them in scope)
+# STEP 3 — METHOD
 # ─────────────────────────────────────────────────────────────
 ot_1_5_total = ot_2_0_total = 0.0
 regular_rate = ot_hours_1_5 = dt_hours_2_0 = 0.0
@@ -851,7 +844,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
         index=st.session_state.input_method_index,
         horizontal=True, key="w_method",
     )
-    # Persist selected index (0 or 1) so it survives language reruns
     if method_choice is not None:
         st.session_state.input_method_index = (
             0 if method_choice == t["choose_method_options"][0] else 1
@@ -862,7 +854,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
         st.stop()
 
     if method_choice == t["choose_method_options"][0]:
-        # ── Option A ────────────────────────────────────────
         with st.expander(t["option_a_title"], expanded=True):
             ot_1_5_total = money_input(
                 t["ot_total_1_5_paid_label"], step=100.0,
@@ -877,7 +868,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
             st.session_state.input_ot_1_5_total = ot_1_5_total
             st.session_state.input_ot_2_0_total = ot_2_0_total
     else:
-        # ── Option B ────────────────────────────────────────
         with st.expander(t["option_b_title"], expanded=True):
             regular_rate = money_input(
                 t["regular_rate_label"], step=0.5,
@@ -904,7 +894,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
                 value=st.session_state.input_dt_hours_2_0,
                 help=t["dt_hours_2_0_help"], lang=lang, currency=" ", key="w_dt_hours_2_0",
             )
-            # Persist
             st.session_state.input_regular_rate     = regular_rate
             st.session_state.input_actual_rate_1_5  = actual_rate_1_5
             st.session_state.input_actual_rate_2_0  = actual_rate_2_0
@@ -921,7 +910,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
             mismatch_1_5 = _is_mismatch(actual_rate_1_5, expected_rate_1_5)
             mismatch_2_0 = _is_mismatch(actual_rate_2_0, expected_rate_2_0)
 
-            # Feedback
             for actual, expected, mismatch, warn_key in [
                 (actual_rate_1_5, expected_rate_1_5, mismatch_1_5, "rate_mismatch_warning_1_5"),
                 (actual_rate_2_0, expected_rate_2_0, mismatch_2_0, "rate_mismatch_warning_2_0"),
@@ -933,7 +921,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
                     else:
                         st.info(t["rate_match_info"])
 
-            # Override inputs (only when mismatch)
             if mismatch_1_5:
                 st.markdown("---")
                 ytd_override_1_5 = money_input(
@@ -976,7 +963,6 @@ else:
 
     if st.button(btn_label, type="secondary", use_container_width=True, disabled=not confirmed):
 
-        # ── Validations ──────────────────────────────────────
         if total_income <= 0:
             st.error(t["error_missing_total_income"]); st.stop()
 
@@ -986,7 +972,7 @@ else:
             method_used = t["method_total"]
             rate_mismatch_label = "--"
 
-        else:  # Option B
+        else:
             if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
                 st.error(t["error_empty_option_b"]); st.stop()
 
@@ -1018,7 +1004,6 @@ else:
             else:
                 rate_mismatch_label = t["data_mismatch_none"]
 
-        # ── Core calculation ─────────────────────────────────
         ot_total_paid  = ot_1_5_total + ot_2_0_total
         ot_1_5_premium = calculate_ot_premium(ot_1_5_total, 1.5, "total")
         ot_2_0_premium = calculate_ot_premium(ot_2_0_total, 2.0, "total")
@@ -1036,7 +1021,6 @@ else:
         if base_salary < 0:
             st.error(t["error_income_less_than_ot"]); st.stop()
 
-        # ── Consume token ────────────────────────────────────
         if is_single and not st.session_state.token_consumed or not is_single:
             try:
                 rc      = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
@@ -1060,7 +1044,6 @@ else:
             except Exception:
                 st.error(t["consume_error"]); st.stop()
 
-        # ── Save results ─────────────────────────────────────
         st.session_state.results = {
             "total_income":      total_income,
             "base_salary":       base_salary,
@@ -1080,7 +1063,6 @@ else:
             "qoc_gross":         qoc_gross,
             "deduction_limit":   deduction_limit,
             "total_deduction":   total_deduction,
-            # Option B detail
             "regular_rate":      regular_rate,
             "ot_hours_1_5":      ot_hours_1_5,
             "dt_hours_2_0":      dt_hours_2_0,
@@ -1136,7 +1118,6 @@ with tab_data:
     is_b = d["method_used"] == t["method_hours"]
 
     def _v(val, *, money=True, hours=False):
-        """Return formatted value or '--' for zero/None."""
         if not val:
             return "--"
         if hours:
@@ -1190,7 +1171,6 @@ with tab_data:
              (t["phaseout_limit_label"],  fmt_num(d["deduction_limit"], lang)),
              (t["total_deduction_label"], fmt_num(d["total_deduction"], lang))]
 
-    # Render
     FINAL_KEY  = t["total_deduction_label"]
     SEC_STYLE  = "background-color:#1e3a5f;color:white;font-weight:700"
     FINAL_STYLE= "background-color:#1a6b3a;color:white;font-weight:700"
@@ -1288,7 +1268,6 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
             return f"{float(val):.0f} h"
         return fmt_num(val, lang=lang) if money else str(val)
 
-    # Page 1 — Disclaimer
     pdf.add_page()
     pdf.set_fill_color(200, 30, 30); pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 13)
@@ -1296,7 +1275,6 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
     pdf.set_text_color(0, 0, 0); pdf.ln(5)
     _body(tl["disclaimer_msg"])
 
-    # Page 2 — Report
     pdf.add_page()
     pdf.set_fill_color(30, 100, 200); pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 14)
@@ -1311,28 +1289,23 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
     _info_box([(tl["pdf_user_name"], user_name),
                (tl["pdf_used_count"], str(num_docs))])
 
-    # Summary table — same logical order as the UI table
     _sec(tl["pdf_summary_title"])
     _hdr(tl["data_column_concept"], tl["data_column_value"])
 
     summary = [
-        # Eligibility
         (tl["filing_status_label"],  results["filing_status"]),
         (tl["ss_check_label"],       results["ss_check"]),
         (tl["itin_check_label"],     results["itin_check"]),
         (tl["over_40_label"],        results["over_40"]),
         (tl["ot_1_5x_label"],        results["ot_1_5x"]),
-        # Income
         (tl["magi_label"],           fmt_num(results["total_income"], lang=lang)),
         (tl["data_base_salary"],     fmt_num(results["base_salary"],  lang=lang)),
-        # Method + inputs
         (tl["data_method_used"],     results["method_used"]),
         *([(tl["regular_rate_label"],  _pv(results["regular_rate"])),
            (tl["ot_hours_1_5_label"],  _pv(results["ot_hours_1_5"], hours=True)),
            (tl["dt_hours_2_0_label"],  _pv(results["dt_hours_2_0"], hours=True))] if is_b
           else [(tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"], lang=lang)),
                 (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"], lang=lang))]),
-        # Rate verification (Option B only)
         *([(tl["data_concept_expected_rate_1_5"], fmt_num(results["expected_rate_1_5"], lang=lang)),
            (tl["data_concept_expected_rate_2_0"], fmt_num(results["expected_rate_2_0"], lang=lang)),
            (tl["actual_rate_1_5_label"],
@@ -1340,14 +1313,12 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
            (tl["actual_rate_2_0_label"],
             fmt_num(results["actual_rate_2_0"], lang=lang) if results["actual_rate_2_0"] > 0 else "--"),
            (tl["data_rate_mismatch"], results["rate_mismatch_label"])] if is_b else []),
-        # OT totals
         (tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"],  lang=lang)),
         (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"],  lang=lang)),
         (tl["data_ot_total_paid"],       fmt_num(results["ot_total_paid"], lang=lang)),
         (tl["data_premium_1_5"],         fmt_num(results["ot_1_5_premium"], lang=lang)),
         (tl["data_premium_2_0"],
          fmt_num(results["ot_2_0_premium"], lang=lang) if results["ot_2_0_premium"] > 0 else "--"),
-        # Deduction
         (tl["data_qoc_gross"],        fmt_num(results["qoc_gross"],       lang=lang)),
         (tl["phaseout_limit_label"],  fmt_num(results["deduction_limit"], lang=lang)),
         (tl["total_deduction_label"], fmt_num(results["total_deduction"], lang=lang)),
@@ -1355,7 +1326,6 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
     for i, (lbl, val) in enumerate(summary):
         _row(lbl, val, idx=i)
 
-    # Final deduction highlight
     pdf.ln(6)
     pdf.set_fill_color(0, 140, 60); pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 12)
@@ -1364,12 +1334,10 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
              fill=True, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0); pdf.set_font("DejaVu", "", 10)
 
-    # Evidence
     _sec(tl["pdf_evidence_title"])
     _body(tl["pdf_docs_attached"].format(len(uploaded_files)) if uploaded_files
           else tl["pdf_no_docs"])
 
-    # Merge attachments
     merger = PdfMerger()
     merger.append(BytesIO(pdf.output()))
     for uf in (uploaded_files or []):
