@@ -31,7 +31,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────
-# GLOBAL STYLES  (defined once, applied everywhere)
+# GLOBAL STYLES
 # ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -61,6 +61,11 @@ div[data-testid="stButton"] > button:disabled { background-color:#2ecc71!importa
     border:1px solid #ffc107;border-radius:8px;padding:10px 18px;margin-bottom:16px;
     font-size:14px;font-weight:500;
     background:color-mix(in srgb,#ffc107 15%,var(--background-color));color:var(--text-color);
+}
+/* Navigation bar styles */
+.nav-bar {
+    display:flex;gap:8px;padding:10px 0;margin-bottom:16px;
+    border-bottom:2px solid var(--secondary-background-color);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -242,11 +247,17 @@ texts = {
         "pdf_final_deduction": "DEDUCCIÓN FINAL ESTIMADA: {}",
         "disclaimer_label": "AVISO LEGAL Y DESCARGO DE RESPONSABILIDAD",
         "disclaimer": "**Descargo de responsabilidad:** Esta herramienta tiene únicamente fines informativos y de estimación.",
-        "disclaimer_msg": "IMPORTANTE: Esta calculadora genera estimaciones aproximadas de la deducción por horas extras calificadas conforme a la Ley OBBB 2025. No representa asesoría fiscal, legal ni contable. Los resultados son orientativos y no garantizan su aceptación por parte del IRS. Se recomienda consultar con un contador público autorizado antes de incluir cualquier deducción en una declaración de impuestos. El uso de esta herramienta es bajo exclusiva responsabilidad del usuario.",
+        # ── UPDATED disclaimer_msg (Spanish) ──────────────────────────────────
+        "disclaimer_msg": "IMPORTANTE: Esta calculadora genera estimaciones aproximadas de la deducción por horas extras calificadas conforme a la Ley OBBB 2025. No representa asesoría fiscal, legal ni contable. Los resultados son orientativos y no garantizan su aceptación por parte del IRS. Se recomienda consultar con un contador público autorizado antes de incluir cualquier deducción en una declaración de impuestos. El uso de esta herramienta es bajo exclusiva responsabilidad del usuario.\n\nEsta herramienta es solo para calcular. Al generar el reporte NO se guarda en una base de datos (ZaiOT y usuarios).",
         "language_label": "🌐 Idioma",
         "language_options": ["Español", "English"],
         "button_continue": "Continuar",
         "error_pdf_generation": "❌ Error al generar el PDF: {}",
+        # Navigation
+        "nav_step1": "📋 Paso 1: Elegibilidad",
+        "nav_step2": "💰 Paso 2: Ingresos",
+        "nav_step3": "⏱ Paso 3: Horas extras",
+        "nav_label":  "Navegar a:",
     },
     "en": {
         # Landing
@@ -421,11 +432,17 @@ texts = {
         "pdf_final_deduction": "FINAL ESTIMATED DEDUCTION: {}",
         "disclaimer_label": "LEGAL NOTICE AND DISCLAIMER",
         "disclaimer": "**Disclaimer:** This tool is provided for informational and estimation purposes only.",
-        "disclaimer_msg": "IMPORTANT: This calculator generates approximate estimates of the qualified overtime deduction under the OBBB Act 2025. It is not tax, legal, or accounting advice. Results are for guidance only and do not guarantee acceptance by the IRS. It is strongly recommended to consult a certified public accountant before claiming any deduction. Use of this tool is at the user's sole responsibility.",
+        # ── UPDATED disclaimer_msg (English) ──────────────────────────────────
+        "disclaimer_msg": "IMPORTANT: This calculator generates approximate estimates of the qualified overtime deduction under the OBBB Act 2025. It is not tax, legal, or accounting advice. Results are for guidance only and do not guarantee acceptance by the IRS. It is strongly recommended to consult a certified public accountant before claiming any deduction. Use of this tool is at the user's sole responsibility.\n\nThis tool is for calculation purposes only. When generating the report, NO data is stored in any database (ZaiOT or users).",
         "language_label": "🌐 Language",
         "language_options": ["Spanish", "English"],
         "button_continue": "Continue",
         "error_pdf_generation": "❌ Error generating PDF: {}",
+        # Navigation
+        "nav_step1": "📋 Step 1: Eligibility",
+        "nav_step2": "💰 Step 2: Income",
+        "nav_step3": "⏱ Step 3: Overtime",
+        "nav_label":  "Go to:",
     }
 }
 
@@ -446,7 +463,7 @@ _DEFAULTS = {
     "completed_step_2": False,
     "input_total_income": 0.0,
     # Step 3
-    "input_method_index": None,   # 0 = Option A, 1 = Option B
+    "input_method_index": None,
     "input_ot_1_5_total": 0.0,
     "input_ot_2_0_total": 0.0,
     "input_regular_rate": 0.0,
@@ -465,6 +482,8 @@ _DEFAULTS = {
     "token_data": None,
     "token_consumed": False,
     "token_uses_left": None,
+    # Navigation — which step is currently expanded: 1, 2, or 3
+    "active_step": 1,
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -491,13 +510,15 @@ lang = st.session_state.language
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
-def fmt_num(value: float, lang: str, currency="$", decimals=2) -> str:
-    """Format a number with locale-aware separators."""
+def fmt_num(value: float, lang: str = None, currency="$", decimals=2) -> str:
+    """
+    Format a number always using US notation (commas as thousand separators,
+    period as decimal point), e.g. $12,500.00.
+    The lang parameter is kept for signature compatibility but is no longer used.
+    """
     if value is None:
         return f"{currency}0"
     s = f"{value:,.{decimals}f}"
-    if lang == "es":
-        s = s.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{currency}{s}"
 
 def fmt_date(ts_ms: int) -> str:
@@ -512,7 +533,7 @@ def money_input(label, *, value=0.0, step=100.0, decimals=2, key=None, help=None
                               format=f"%.{decimals}f", key=key, help=help)
     with col_prev:
         st.metric(label=" ", value=f"{currency}0" if num == 0
-                  else f"{currency}{fmt_num(num, lang, currency='', decimals=decimals)}")
+                  else f"{currency}{fmt_num(num, currency='', decimals=decimals)}")
     return num
 
 def show_buy_buttons(t):
@@ -534,6 +555,73 @@ def show_buy_buttons(t):
     with col_b:
         st.markdown(_btn.format(url=STRIPE_SUB, bg="#7b61ff",
                                 label=t["calc_btn_buy_sub_lbl"]), unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# NAVIGATION BAR
+# ─────────────────────────────────────────────────────────────
+def show_nav_bar():
+    """
+    Renders a horizontal navigation bar with buttons for each completed step.
+    Only steps the user has already reached are shown.
+    - Step 1 button always visible once eligible check has started.
+    - Step 2 button visible once eligible == True.
+    - Step 3 button visible once completed_step_2 == True.
+    Clicking a step button sets active_step and resets downstream data if going back.
+    """
+    eligible        = st.session_state.eligible
+    completed_step2 = st.session_state.completed_step_2
+
+    # Determine which steps are reachable
+    show_s1 = True          # always shown inside the calculator
+    show_s2 = eligible
+    show_s3 = eligible and completed_step2
+
+    if not (show_s2 or show_s3):
+        return  # Only Step 1 available — no nav bar needed yet
+
+    st.markdown(f"<p style='margin-bottom:4px;font-size:13px;color:var(--secondary-text-color);'><b>{t['nav_label']}</b></p>", unsafe_allow_html=True)
+
+    cols = st.columns([1, 1, 1, 3])  # 3 nav buttons + spacer
+
+    with cols[0]:
+        if show_s1:
+            if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
+                # Going back to Step 1: reset Steps 2 and 3
+                st.session_state.eligible          = False
+                st.session_state.completed_step_2  = False
+                st.session_state.show_results      = False
+                st.session_state.results           = None
+                st.session_state.pdf_bytes         = None
+                st.session_state.input_filing_val  = None
+                st.session_state.input_over40_val  = None
+                st.session_state.input_ot15x_val   = None
+                st.session_state.input_ss_val      = None
+                st.session_state.input_itin_val    = None
+                st.session_state.active_step       = 1
+                st.rerun()
+
+    with cols[1]:
+        if show_s2:
+            if st.button(t["nav_step2"], key="nav_btn_2", use_container_width=True):
+                # Going back to Step 2: reset Step 3 and results only
+                st.session_state.completed_step_2  = False
+                st.session_state.show_results      = False
+                st.session_state.results           = None
+                st.session_state.pdf_bytes         = None
+                st.session_state.active_step       = 2
+                st.rerun()
+
+    with cols[2]:
+        if show_s3:
+            if st.button(t["nav_step3"], key="nav_btn_3", use_container_width=True):
+                # Going back to Step 3: clear results only
+                st.session_state.show_results = False
+                st.session_state.results      = None
+                st.session_state.pdf_bytes    = None
+                st.session_state.active_step  = 3
+                st.rerun()
+
+    st.markdown("---")
 
 # ─────────────────────────────────────────────────────────────
 # TOKEN VALIDATION  (once per session)
@@ -713,21 +801,26 @@ st.markdown(f"""
 st.warning(t["disclaimer"])
 
 # ─────────────────────────────────────────────────────────────
+# NAVIGATION BAR  (shown above steps, only when steps unlocked)
+# ─────────────────────────────────────────────────────────────
+show_nav_bar()
+
+# ─────────────────────────────────────────────────────────────
 # STEP 1 — ELIGIBILITY
 # ─────────────────────────────────────────────────────────────
-eligible = st.session_state.eligible
+eligible    = st.session_state.eligible
+active_step = st.session_state.active_step
 
-with st.expander(f"### {t['step1_title']}", expanded=not eligible):
+# Step 1 is expanded when: not yet eligible, OR user navigated back to it
+step1_expanded = (not eligible) or (active_step == 1)
+
+with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     st.info(t["step1_info"])
 
-    # Persist answers as string values so they survive language reruns.
-    # We look up the integer index from the current language's option list at render time.
     def _radio_index(saved_key, options):
-        """Return the integer index of the saved value in options, or None if not saved."""
         saved = st.session_state.get(saved_key)
         if saved is None:
             return None
-        # saved may be an index (int) from a previous session or a string value
         if isinstance(saved, int) and 0 <= saved < len(options):
             return saved
         try:
@@ -791,7 +884,8 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
     )
 
     if auto_eligible and not st.session_state.eligible:
-        st.session_state.eligible = True
+        st.session_state.eligible    = True
+        st.session_state.active_step = 2
         st.rerun()
 
     if eligible:
@@ -805,7 +899,9 @@ with st.expander(f"### {t['step1_title']}", expanded=not eligible):
 if not eligible:
     st.stop()
 
-with st.expander(f"### {t['step2_title']}", expanded=True):
+step2_expanded = (not st.session_state.completed_step_2) or (active_step == 2)
+
+with st.expander(f"### {t['step2_title']}", expanded=step2_expanded):
     st.info(t["step2_info"])
     total_income = money_input(
         t["magi_label"],
@@ -820,6 +916,7 @@ with st.expander(f"### {t['step2_title']}", expanded=True):
                 st.error(t["error_missing_total_income"])
             else:
                 st.session_state.completed_step_2 = True
+                st.session_state.active_step      = 3
                 st.rerun()
     else:
         st.success(t["step2_completed_msg"])
@@ -828,8 +925,7 @@ if not st.session_state.completed_step_2:
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
-# STEP 3 — METHOD  (variables initialised here so calculate
-#                   button always has them in scope)
+# STEP 3 — METHOD
 # ─────────────────────────────────────────────────────────────
 ot_1_5_total = ot_2_0_total = 0.0
 regular_rate = ot_hours_1_5 = dt_hours_2_0 = 0.0
@@ -839,14 +935,15 @@ ytd_override_1_5 = ytd_override_2_0 = 0.0
 mismatch_1_5 = mismatch_2_0 = False
 rate_1_5 = rate_2_0 = 0.0
 
-with st.expander(f"### {t['step3_title']}", expanded=True):
+step3_expanded = (not st.session_state.show_results) or (active_step == 3)
+
+with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
     st.info(t["step3_info"])
     method_choice = st.radio(
         t["choose_method_label"], t["choose_method_options"],
         index=st.session_state.input_method_index,
         horizontal=True, key="w_method",
     )
-    # Persist selected index (0 or 1) so it survives language reruns
     if method_choice is not None:
         st.session_state.input_method_index = (
             0 if method_choice == t["choose_method_options"][0] else 1
@@ -857,7 +954,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
         st.stop()
 
     if method_choice == t["choose_method_options"][0]:
-        # ── Option A ────────────────────────────────────────
         with st.expander(t["option_a_title"], expanded=True):
             ot_1_5_total = money_input(
                 t["ot_total_1_5_paid_label"], step=100.0,
@@ -872,7 +968,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
             st.session_state.input_ot_1_5_total = ot_1_5_total
             st.session_state.input_ot_2_0_total = ot_2_0_total
     else:
-        # ── Option B ────────────────────────────────────────
         with st.expander(t["option_b_title"], expanded=True):
             regular_rate = money_input(
                 t["regular_rate_label"], step=0.5,
@@ -899,7 +994,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
                 value=st.session_state.input_dt_hours_2_0,
                 help=t["dt_hours_2_0_help"], lang=lang, currency=" ", key="w_dt_hours_2_0",
             )
-            # Persist
             st.session_state.input_regular_rate     = regular_rate
             st.session_state.input_actual_rate_1_5  = actual_rate_1_5
             st.session_state.input_actual_rate_2_0  = actual_rate_2_0
@@ -916,7 +1010,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
             mismatch_1_5 = _is_mismatch(actual_rate_1_5, expected_rate_1_5)
             mismatch_2_0 = _is_mismatch(actual_rate_2_0, expected_rate_2_0)
 
-            # Feedback
             for actual, expected, mismatch, warn_key in [
                 (actual_rate_1_5, expected_rate_1_5, mismatch_1_5, "rate_mismatch_warning_1_5"),
                 (actual_rate_2_0, expected_rate_2_0, mismatch_2_0, "rate_mismatch_warning_2_0"),
@@ -928,7 +1021,6 @@ with st.expander(f"### {t['step3_title']}", expanded=True):
                     else:
                         st.info(t["rate_match_info"])
 
-            # Override inputs (only when mismatch)
             if mismatch_1_5:
                 st.markdown("---")
                 ytd_override_1_5 = money_input(
@@ -971,7 +1063,6 @@ else:
 
     if st.button(btn_label, type="secondary", use_container_width=True, disabled=not confirmed):
 
-        # ── Validations ──────────────────────────────────────
         if total_income <= 0:
             st.error(t["error_missing_total_income"]); st.stop()
 
@@ -981,7 +1072,7 @@ else:
             method_used = t["method_total"]
             rate_mismatch_label = "--"
 
-        else:  # Option B
+        else:
             if not (regular_rate > 0 and (ot_hours_1_5 + dt_hours_2_0) > 0):
                 st.error(t["error_empty_option_b"]); st.stop()
 
@@ -1013,7 +1104,6 @@ else:
             else:
                 rate_mismatch_label = t["data_mismatch_none"]
 
-        # ── Core calculation ─────────────────────────────────
         ot_total_paid  = ot_1_5_total + ot_2_0_total
         ot_1_5_premium = calculate_ot_premium(ot_1_5_total, 1.5, "total")
         ot_2_0_premium = calculate_ot_premium(ot_2_0_total, 2.0, "total")
@@ -1031,7 +1121,6 @@ else:
         if base_salary < 0:
             st.error(t["error_income_less_than_ot"]); st.stop()
 
-        # ── Consume token ────────────────────────────────────
         if is_single and not st.session_state.token_consumed or not is_single:
             try:
                 rc      = requests.post(CONSUME_URL, json={"token": token}, timeout=8)
@@ -1055,7 +1144,6 @@ else:
             except Exception:
                 st.error(t["consume_error"]); st.stop()
 
-        # ── Save results ─────────────────────────────────────
         st.session_state.results = {
             "total_income":      total_income,
             "base_salary":       base_salary,
@@ -1075,7 +1163,6 @@ else:
             "qoc_gross":         qoc_gross,
             "deduction_limit":   deduction_limit,
             "total_deduction":   total_deduction,
-            # Option B detail
             "regular_rate":      regular_rate,
             "ot_hours_1_5":      ot_hours_1_5,
             "dt_hours_2_0":      dt_hours_2_0,
@@ -1090,6 +1177,7 @@ else:
             "rate_mismatch_label": rate_mismatch_label,
         }
         st.session_state.show_results = True
+        st.session_state.active_step  = 3
         st.rerun()
 
 # ─────────────────────────────────────────────────────────────
@@ -1131,7 +1219,6 @@ with tab_data:
     is_b = d["method_used"] == t["method_hours"]
 
     def _v(val, *, money=True, hours=False):
-        """Return formatted value or '--' for zero/None."""
         if not val:
             return "--"
         if hours:
@@ -1185,7 +1272,6 @@ with tab_data:
              (t["phaseout_limit_label"],  fmt_num(d["deduction_limit"], lang)),
              (t["total_deduction_label"], fmt_num(d["total_deduction"], lang))]
 
-    # Render
     FINAL_KEY  = t["total_deduction_label"]
     SEC_STYLE  = "background-color:#1e3a5f;color:white;font-weight:700"
     FINAL_STYLE= "background-color:#1a6b3a;color:white;font-weight:700"
@@ -1281,7 +1367,7 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
             return "--"
         if hours:
             return f"{float(val):.0f} h"
-        return fmt_num(val, lang=lang) if money else str(val)
+        return fmt_num(val) if money else str(val)
 
     # Page 1 — Disclaimer
     pdf.add_page()
@@ -1306,65 +1392,55 @@ def build_pdf(user_name, uploaded_files, num_docs, results, lang):
     _info_box([(tl["pdf_user_name"], user_name),
                (tl["pdf_used_count"], str(num_docs))])
 
-    # Summary table — same logical order as the UI table
     _sec(tl["pdf_summary_title"])
     _hdr(tl["data_column_concept"], tl["data_column_value"])
 
     summary = [
-        # Eligibility
         (tl["filing_status_label"],  results["filing_status"]),
         (tl["ss_check_label"],       results["ss_check"]),
         (tl["itin_check_label"],     results["itin_check"]),
         (tl["over_40_label"],        results["over_40"]),
         (tl["ot_1_5x_label"],        results["ot_1_5x"]),
-        # Income
-        (tl["magi_label"],           fmt_num(results["total_income"], lang=lang)),
-        (tl["data_base_salary"],     fmt_num(results["base_salary"],  lang=lang)),
-        # Method + inputs
+        (tl["magi_label"],           fmt_num(results["total_income"])),
+        (tl["data_base_salary"],     fmt_num(results["base_salary"])),
         (tl["data_method_used"],     results["method_used"]),
         *([(tl["regular_rate_label"],  _pv(results["regular_rate"])),
            (tl["ot_hours_1_5_label"],  _pv(results["ot_hours_1_5"], hours=True)),
            (tl["dt_hours_2_0_label"],  _pv(results["dt_hours_2_0"], hours=True))] if is_b
-          else [(tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"], lang=lang)),
-                (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"], lang=lang))]),
-        # Rate verification (Option B only)
-        *([(tl["data_concept_expected_rate_1_5"], fmt_num(results["expected_rate_1_5"], lang=lang)),
-           (tl["data_concept_expected_rate_2_0"], fmt_num(results["expected_rate_2_0"], lang=lang)),
+          else [(tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"])),
+                (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"]))]),
+        *([(tl["data_concept_expected_rate_1_5"], fmt_num(results["expected_rate_1_5"])),
+           (tl["data_concept_expected_rate_2_0"], fmt_num(results["expected_rate_2_0"])),
            (tl["actual_rate_1_5_label"],
-            fmt_num(results["actual_rate_1_5"], lang=lang) if results["actual_rate_1_5"] > 0 else "--"),
+            fmt_num(results["actual_rate_1_5"]) if results["actual_rate_1_5"] > 0 else "--"),
            (tl["actual_rate_2_0_label"],
-            fmt_num(results["actual_rate_2_0"], lang=lang) if results["actual_rate_2_0"] > 0 else "--"),
+            fmt_num(results["actual_rate_2_0"]) if results["actual_rate_2_0"] > 0 else "--"),
            (tl["data_rate_mismatch"], results["rate_mismatch_label"])] if is_b else []),
-        # OT totals
-        (tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"],  lang=lang)),
-        (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"],  lang=lang)),
-        (tl["data_ot_total_paid"],       fmt_num(results["ot_total_paid"], lang=lang)),
-        (tl["data_premium_1_5"],         fmt_num(results["ot_1_5_premium"], lang=lang)),
+        (tl["ot_total_1_5_paid_label"], fmt_num(results["ot_1_5_total"])),
+        (tl["ot_total_2_0_paid_label"], fmt_num(results["ot_2_0_total"])),
+        (tl["data_ot_total_paid"],       fmt_num(results["ot_total_paid"])),
+        (tl["data_premium_1_5"],         fmt_num(results["ot_1_5_premium"])),
         (tl["data_premium_2_0"],
-         fmt_num(results["ot_2_0_premium"], lang=lang) if results["ot_2_0_premium"] > 0 else "--"),
-        # Deduction
-        (tl["data_qoc_gross"],        fmt_num(results["qoc_gross"],       lang=lang)),
-        (tl["phaseout_limit_label"],  fmt_num(results["deduction_limit"], lang=lang)),
-        (tl["total_deduction_label"], fmt_num(results["total_deduction"], lang=lang)),
+         fmt_num(results["ot_2_0_premium"]) if results["ot_2_0_premium"] > 0 else "--"),
+        (tl["data_qoc_gross"],        fmt_num(results["qoc_gross"])),
+        (tl["phaseout_limit_label"],  fmt_num(results["deduction_limit"])),
+        (tl["total_deduction_label"], fmt_num(results["total_deduction"])),
     ]
     for i, (lbl, val) in enumerate(summary):
         _row(lbl, val, idx=i)
 
-    # Final deduction highlight
     pdf.ln(6)
     pdf.set_fill_color(0, 140, 60); pdf.set_text_color(255, 255, 255)
     pdf.set_font("DejaVu", "B", 12)
     pdf.cell(UW, 12,
-             tl["pdf_final_deduction"].format(fmt_num(results["total_deduction"], lang=lang)),
+             tl["pdf_final_deduction"].format(fmt_num(results["total_deduction"])),
              fill=True, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0); pdf.set_font("DejaVu", "", 10)
 
-    # Evidence
     _sec(tl["pdf_evidence_title"])
     _body(tl["pdf_docs_attached"].format(len(uploaded_files)) if uploaded_files
           else tl["pdf_no_docs"])
 
-    # Merge attachments
     merger = PdfMerger()
     merger.append(BytesIO(pdf.output()))
     for uf in (uploaded_files or []):
