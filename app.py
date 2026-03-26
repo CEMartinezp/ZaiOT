@@ -137,7 +137,7 @@ texts = {
         "itin_check_label": "¿El contribuyente posee un Número de Identificación Tributaria Individual (ITIN)?",
         "ot_1_5x_label": "¿La mayoría de las horas extras se remuneran con una tarifa de tiempo y medio (1.5x la tarifa regular)?",
         "unlock_message": "De acuerdo con las respuestas proporcionadas, es posible que no se cumplan los requisitos para aplicar la deducción. Se recomienda consultar con un contador profesional antes de continuar.",
-        "eligible_blocked_info": "✅ Sus respuestas cumplen con los requisitos básicos de elegibilidad. Las respuestas han sido bloqueadas.",
+        "eligible_blocked_info": "✅ Sus respuestas cumplen con los requisitos básicos de elegibilidad.",
         "step2_title": "Paso 2: Ingreso de datos de ingresos y horas extras",
         "step2_info": "Ingrese su ingreso total aproximado del año (incluyendo todos los conceptos gravables).",
         "magi_label": "Ingreso total aproximado del año (incluye salario base, horas extras, bonos, etc) ($)",
@@ -259,6 +259,7 @@ texts = {
         "nav_step2": "💰 Paso 2: Ingresos",
         "nav_step3": "⏱ Paso 3: Horas extras",
         "nav_label":  "Navegar a:",
+        "nav_start_over": "🔄 Comenzar de nuevo",
     },
     "en": {
         # Landing
@@ -322,7 +323,7 @@ texts = {
         "itin_check_label": "Does the taxpayer have an Individual Taxpayer Identification Number (ITIN)?",
         "ot_1_5x_label": "Are most overtime hours paid at time-and-a-half rate (1.5x the regular rate)?",
         "unlock_message": "Based on the responses provided, the requirements for this deduction may not be met. It is recommended to consult a tax professional before proceeding.",
-        "eligible_blocked_info": "✅ Your answers meet the basic eligibility requirements. Your responses have been locked.",
+        "eligible_blocked_info": "✅ Your answers meet the basic eligibility requirements.",
         "step2_title": "Step 2: Enter Income and Overtime Data",
         "step2_info": "Please enter your approximate total income for the year (including all taxable income).",
         "magi_label": "Approximate total annual income (includes base salary, overtime, bonuses, etc.) ($)",
@@ -444,6 +445,7 @@ texts = {
         "nav_step2": "💰 Step 2: Income",
         "nav_step3": "⏱ Step 3: Overtime",
         "nav_label":  "Go to:",
+        "nav_start_over": "🔄 Start Over",
     }
 }
 
@@ -559,13 +561,39 @@ def show_buy_buttons(t):
                                 label=t["calc_btn_buy_sub_lbl"]), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# CHANGE 3: NAVIGATION BAR
+# NAVIGATION BAR — sticky bottom bar
 # ─────────────────────────────────────────────────────────────
+def _do_start_over():
+    """Reset all form data and go back to Step 1. Token is never restored."""
+    st.session_state.eligible             = False
+    st.session_state.completed_step_2     = False
+    st.session_state.show_results         = False
+    st.session_state.results              = None
+    st.session_state.pdf_bytes            = None
+    st.session_state.input_filing_val     = None
+    st.session_state.input_over40_val     = None
+    st.session_state.input_ot15x_val      = None
+    st.session_state.input_ss_val         = None
+    st.session_state.input_itin_val       = None
+    st.session_state.input_total_income   = 0.0
+    st.session_state.input_method_index   = None
+    st.session_state.input_ot_1_5_total   = 0.0
+    st.session_state.input_ot_2_0_total   = 0.0
+    st.session_state.input_regular_rate   = 0.0
+    st.session_state.input_actual_rate_1_5= 0.0
+    st.session_state.input_actual_rate_2_0= 0.0
+    st.session_state.input_ot_hours_1_5   = 0.0
+    st.session_state.input_dt_hours_2_0   = 0.0
+    st.session_state.input_ytd_override_1_5=0.0
+    st.session_state.input_ytd_override_2_0=0.0
+    st.session_state.active_step          = 1
+
 def show_nav_bar():
     """
-    Horizontal nav bar shown above the steps.
-    Only shows buttons for steps the user has already reached.
-    Going back resets all downstream steps but preserves entered data.
+    Sticky bottom navigation bar.
+    Shows buttons for all steps the user has reached + Start Over.
+    Only the active step is expanded; all others are collapsed.
+    Sticks to the bottom of the viewport using injected CSS/HTML.
     """
     eligible        = st.session_state.eligible
     completed_step2 = st.session_state.completed_step_2
@@ -573,55 +601,118 @@ def show_nav_bar():
     show_s2 = eligible
     show_s3 = eligible and completed_step2
 
-    if not (show_s2 or show_s3):
-        return  # Nothing to show until at least Step 2 is reachable
+    # Always show the bar once the token is valid (Step 1 is always reachable)
+    # Build button HTML for reached steps
+    # We use st.columns rendered inside a fixed container via HTML+JS trick:
+    # inject a fixed bottom bar via CSS, then render real Streamlit buttons
+    # that are positioned to match.
 
-    st.markdown(
-        f"<p style='margin-bottom:4px;font-size:13px;color:var(--secondary-text-color);'>"
-        f"<b>{t['nav_label']}</b></p>",
-        unsafe_allow_html=True,
-    )
+    # ── Inject sticky bottom bar CSS ──────────────────────────────────────
+    st.markdown("""
+    <style>
+    /* Push page content up so it isn't hidden behind the sticky bar */
+    .main > div { padding-bottom: 80px; }
 
-    cols = st.columns([1, 1, 1, 3])
+    /* Sticky bottom nav container */
+    .sticky-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        z-index: 9999;
+        background: var(--background-color);
+        border-top: 2px solid #2ecc71;
+        padding: 8px 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+    }
+    .sticky-nav-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+        margin-right: 4px;
+    }
+    /* Start Over button — red tint */
+    div[data-testid="stButton"][id^="so_"] > button,
+    div[data-testid="column"]:last-child div[data-testid="stButton"] > button {
+        background-color: #e74c3c !important;
+    }
+    div[data-testid="column"]:last-child div[data-testid="stButton"] > button:hover {
+        background-color: #c0392b !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    with cols[0]:
-        if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
-            # Back to Step 1: reset eligibility and everything downstream
-            st.session_state.eligible          = False
-            st.session_state.completed_step_2  = False
-            st.session_state.show_results      = False
-            st.session_state.results           = None
-            st.session_state.pdf_bytes         = None
-            st.session_state.input_filing_val  = None
-            st.session_state.input_over40_val  = None
-            st.session_state.input_ot15x_val   = None
-            st.session_state.input_ss_val      = None
-            st.session_state.input_itin_val    = None
-            st.session_state.active_step       = 1
-            st.rerun()
+    # ── Render the actual Streamlit buttons in a horizontal row ───────────
+    # We use a container with columns to lay them out, then the CSS above
+    # makes the whole bottom area sticky.
+    with st.container():
+        st.markdown("<div class='sticky-nav'>", unsafe_allow_html=True)
 
-    with cols[1]:
-        if show_s2:
-            if st.button(t["nav_step2"], key="nav_btn_2", use_container_width=True):
-                # Back to Step 2: reset Step 3 and results only
+        # Determine how many step buttons to show
+        num_step_btns = 1 + (1 if show_s2 else 0) + (1 if show_s3 else 0)
+        # Columns: label + step buttons + start-over button
+        col_widths = [0.6] + [1] * num_step_btns + [1]
+        cols = st.columns(col_widths)
+
+        with cols[0]:
+            st.markdown(
+                f"<div class='sticky-nav-label'>{t['nav_label']}</div>",
+                unsafe_allow_html=True,
+            )
+
+        btn_idx = 1
+
+        # Step 1 — always shown
+        with cols[btn_idx]:
+            if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
+                st.session_state.eligible         = False
                 st.session_state.completed_step_2 = False
                 st.session_state.show_results     = False
                 st.session_state.results          = None
                 st.session_state.pdf_bytes        = None
-                st.session_state.active_step      = 2
+                st.session_state.input_filing_val = None
+                st.session_state.input_over40_val = None
+                st.session_state.input_ot15x_val  = None
+                st.session_state.input_ss_val     = None
+                st.session_state.input_itin_val   = None
+                st.session_state.active_step      = 1
                 st.rerun()
+        btn_idx += 1
 
-    with cols[2]:
+        # Step 2
+        if show_s2:
+            with cols[btn_idx]:
+                if st.button(t["nav_step2"], key="nav_btn_2", use_container_width=True):
+                    st.session_state.completed_step_2 = False
+                    st.session_state.show_results     = False
+                    st.session_state.results          = None
+                    st.session_state.pdf_bytes        = None
+                    st.session_state.active_step      = 2
+                    st.rerun()
+            btn_idx += 1
+
+        # Step 3
         if show_s3:
-            if st.button(t["nav_step3"], key="nav_btn_3", use_container_width=True):
-                # Back to Step 3: clear results only
-                st.session_state.show_results = False
-                st.session_state.results      = None
-                st.session_state.pdf_bytes    = None
-                st.session_state.active_step  = 3
+            with cols[btn_idx]:
+                if st.button(t["nav_step3"], key="nav_btn_3", use_container_width=True):
+                    st.session_state.show_results = False
+                    st.session_state.results      = None
+                    st.session_state.pdf_bytes    = None
+                    st.session_state.active_step  = 3
+                    st.rerun()
+            btn_idx += 1
+
+        # Start Over — always last, red styling via CSS above
+        with cols[btn_idx]:
+            if st.button(t["nav_start_over"], key="nav_btn_start_over", use_container_width=True):
+                _do_start_over()
                 st.rerun()
 
-    st.markdown("---")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
 # TOKEN VALIDATION  (once per session)
@@ -803,7 +894,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.warning(t["disclaimer"])
 
-# CHANGE 3: Navigation bar — shown above all steps
+# Navigation bar — sticky bottom, always rendered when token is valid
 show_nav_bar()
 
 # ─────────────────────────────────────────────────────────────
@@ -812,7 +903,7 @@ show_nav_bar()
 eligible    = st.session_state.eligible
 active_step = st.session_state.active_step
 
-step1_expanded = (not eligible) or (active_step == 1)
+step1_expanded = (active_step == 1)
 
 with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     st.info(t["step1_info"])
@@ -831,7 +922,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     filing_status = st.radio(
         t["filing_status_label"], t["filing_status_options"],
         index=_radio_index("input_filing_val", t["filing_status_options"]),
-        horizontal=True, disabled=eligible, key="w_filing",
+        horizontal=True, key="w_filing",
     )
     st.session_state.input_filing_val = (
         t["filing_status_options"].index(filing_status) if filing_status is not None else None
@@ -840,7 +931,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     over_40 = st.radio(
         t["over_40_label"], t["answer_options"],
         index=_radio_index("input_over40_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["over_40_help"], key="w_over40",
+        horizontal=True, help=t["over_40_help"], key="w_over40",
     )
     st.session_state.input_over40_val = (
         t["answer_options"].index(over_40) if over_40 is not None else None
@@ -849,7 +940,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     ot_1_5x = st.radio(
         t["ot_1_5x_label"], t["answer_options"],
         index=_radio_index("input_ot15x_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["ot_1_5x_help"], key="w_ot15x",
+        horizontal=True, help=t["ot_1_5x_help"], key="w_ot15x",
     )
     st.session_state.input_ot15x_val = (
         t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
@@ -858,7 +949,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     ss_check = st.radio(
         t["ss_check_label"], t["answer_options"],
         index=_radio_index("input_ss_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["ss_check_help"], key="w_ss",
+        horizontal=True, help=t["ss_check_help"], key="w_ss",
     )
     st.session_state.input_ss_val = (
         t["answer_options"].index(ss_check) if ss_check is not None else None
@@ -867,7 +958,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     itin_check = st.radio(
         t["itin_check_label"], t["answer_options"],
         index=_radio_index("input_itin_val", t["answer_options"]),
-        horizontal=True, disabled=eligible, help=t["itin_check_help"], key="w_itin",
+        horizontal=True, help=t["itin_check_help"], key="w_itin",
     )
     st.session_state.input_itin_val = (
         t["answer_options"].index(itin_check) if itin_check is not None else None
@@ -899,7 +990,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
 if not eligible:
     st.stop()
 
-step2_expanded = (not st.session_state.completed_step_2) or (active_step == 2)
+step2_expanded = (active_step == 2)
 
 with st.expander(f"### {t['step2_title']}", expanded=step2_expanded):
     st.info(t["step2_info"])
@@ -935,7 +1026,7 @@ ytd_override_1_5 = ytd_override_2_0 = 0.0
 mismatch_1_5 = mismatch_2_0 = False
 rate_1_5 = rate_2_0 = 0.0
 
-step3_expanded = (not st.session_state.show_results) or (active_step == 3)
+step3_expanded = (active_step == 3)
 
 with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
     st.info(t["step3_info"])
