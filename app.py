@@ -1,4 +1,4 @@
-import os
+﻿import os
 import streamlit as st
 import pandas as pd
 import requests
@@ -248,7 +248,7 @@ texts = {
         "pdf_final_deduction": "DEDUCCIÓN FINAL ESTIMADA: {}",
         "disclaimer_label": "AVISO LEGAL Y DESCARGO DE RESPONSABILIDAD",
         "disclaimer": "**Descargo de responsabilidad:** Esta herramienta tiene únicamente fines informativos y de estimación.",
-        # ── UPDATED disclaimer_msg (Spanish) ──────────────────────────────────
+        # ── CHANGE 2: updated disclaimer_msg (Spanish) ────────────────────────
         "disclaimer_msg": "IMPORTANTE: Esta calculadora genera estimaciones aproximadas de la deducción por horas extras calificadas conforme a la Ley OBBB 2025. No representa asesoría fiscal, legal ni contable. Los resultados son orientativos y no garantizan su aceptación por parte del IRS. Se recomienda consultar con un contador público autorizado antes de incluir cualquier deducción en una declaración de impuestos. El uso de esta herramienta es bajo exclusiva responsabilidad del usuario.\n\nEsta herramienta es solo para calcular. Al generar el reporte NO se guarda en una base de datos (ZaiOT y usuarios).",
         "language_label": "🌐 Idioma",
         "language_options": ["Español", "English"],
@@ -433,7 +433,7 @@ texts = {
         "pdf_final_deduction": "FINAL ESTIMATED DEDUCTION: {}",
         "disclaimer_label": "LEGAL NOTICE AND DISCLAIMER",
         "disclaimer": "**Disclaimer:** This tool is provided for informational and estimation purposes only.",
-        # ── UPDATED disclaimer_msg (English) ──────────────────────────────────
+        # ── CHANGE 2: updated disclaimer_msg (English) ────────────────────────
         "disclaimer_msg": "IMPORTANT: This calculator generates approximate estimates of the qualified overtime deduction under the OBBB Act 2025. It is not tax, legal, or accounting advice. Results are for guidance only and do not guarantee acceptance by the IRS. It is strongly recommended to consult a certified public accountant before claiming any deduction. Use of this tool is at the user's sole responsibility.\n\nThis tool is for calculation purposes only. When generating the report, NO data is stored in any database (ZaiOT or users).",
         "language_label": "🌐 Language",
         "language_options": ["Spanish", "English"],
@@ -461,7 +461,6 @@ _DEFAULTS = {
     "show_results": False,
     "completed_step_2": False,
     "input_total_income": 0.0,
-    # Step 3
     "input_method_index": None,
     "input_ot_1_5_total": 0.0,
     "input_ot_2_0_total": 0.0,
@@ -478,15 +477,17 @@ _DEFAULTS = {
     "token_data": None,
     "token_consumed": False,
     "token_uses_left": None,
-    # Navigation — which step is currently expanded: 1, 2, or 3
+    # CHANGE 3: Navigation — which step is currently expanded: 1, 2, or 3
     "active_step": 1,
+    # URL language flag (from original newer version)
+    "_lang_from_url_applied": False,
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
 # ─────────────────────────────────────────────────────────────
-# LANGUAGE — leer ?lang= de la URL solo la primera vez
+# LANGUAGE — read ?lang= from URL only once
 # ─────────────────────────────────────────────────────────────
 if not st.session_state._lang_from_url_applied:
     _url_lang = st.query_params.get("lang")
@@ -512,11 +513,12 @@ lang = st.session_state.language
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
+# CHANGE 1: fmt_num always uses US notation regardless of language
 def fmt_num(value: float, lang: str = None, currency="$", decimals=2) -> str:
     """
-    Format a number always using US notation (commas as thousand separators,
+    Always formats using US notation (commas as thousand separators,
     period as decimal point), e.g. $12,500.00.
-    The lang parameter is kept for signature compatibility but is no longer used.
+    The lang parameter is kept for signature compatibility but is not used.
     """
     if value is None:
         return f"{currency}0"
@@ -557,64 +559,62 @@ def show_buy_buttons(t):
                                 label=t["calc_btn_buy_sub_lbl"]), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# NAVIGATION BAR
+# CHANGE 3: NAVIGATION BAR
 # ─────────────────────────────────────────────────────────────
 def show_nav_bar():
     """
-    Renders a horizontal navigation bar with buttons for each completed step.
-    Only steps the user has already reached are shown.
-    - Step 1 button always visible once eligible check has started.
-    - Step 2 button visible once eligible == True.
-    - Step 3 button visible once completed_step_2 == True.
-    Clicking a step button sets active_step and resets downstream data if going back.
+    Horizontal nav bar shown above the steps.
+    Only shows buttons for steps the user has already reached.
+    Going back resets all downstream steps but preserves entered data.
     """
     eligible        = st.session_state.eligible
     completed_step2 = st.session_state.completed_step_2
 
-    # Determine which steps are reachable
-    show_s1 = True          # always shown inside the calculator
     show_s2 = eligible
     show_s3 = eligible and completed_step2
 
     if not (show_s2 or show_s3):
-        return  # Only Step 1 available — no nav bar needed yet
+        return  # Nothing to show until at least Step 2 is reachable
 
-    st.markdown(f"<p style='margin-bottom:4px;font-size:13px;color:var(--secondary-text-color);'><b>{t['nav_label']}</b></p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='margin-bottom:4px;font-size:13px;color:var(--secondary-text-color);'>"
+        f"<b>{t['nav_label']}</b></p>",
+        unsafe_allow_html=True,
+    )
 
-    cols = st.columns([1, 1, 1, 3])  # 3 nav buttons + spacer
+    cols = st.columns([1, 1, 1, 3])
 
     with cols[0]:
-        if show_s1:
-            if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
-                # Going back to Step 1: reset Steps 2 and 3
-                st.session_state.eligible          = False
-                st.session_state.completed_step_2  = False
-                st.session_state.show_results      = False
-                st.session_state.results           = None
-                st.session_state.pdf_bytes         = None
-                st.session_state.input_filing_val  = None
-                st.session_state.input_over40_val  = None
-                st.session_state.input_ot15x_val   = None
-                st.session_state.input_ss_val      = None
-                st.session_state.input_itin_val    = None
-                st.session_state.active_step       = 1
-                st.rerun()
+        if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
+            # Back to Step 1: reset eligibility and everything downstream
+            st.session_state.eligible          = False
+            st.session_state.completed_step_2  = False
+            st.session_state.show_results      = False
+            st.session_state.results           = None
+            st.session_state.pdf_bytes         = None
+            st.session_state.input_filing_val  = None
+            st.session_state.input_over40_val  = None
+            st.session_state.input_ot15x_val   = None
+            st.session_state.input_ss_val      = None
+            st.session_state.input_itin_val    = None
+            st.session_state.active_step       = 1
+            st.rerun()
 
     with cols[1]:
         if show_s2:
             if st.button(t["nav_step2"], key="nav_btn_2", use_container_width=True):
-                # Going back to Step 2: reset Step 3 and results only
-                st.session_state.completed_step_2  = False
-                st.session_state.show_results      = False
-                st.session_state.results           = None
-                st.session_state.pdf_bytes         = None
-                st.session_state.active_step       = 2
+                # Back to Step 2: reset Step 3 and results only
+                st.session_state.completed_step_2 = False
+                st.session_state.show_results     = False
+                st.session_state.results          = None
+                st.session_state.pdf_bytes        = None
+                st.session_state.active_step      = 2
                 st.rerun()
 
     with cols[2]:
         if show_s3:
             if st.button(t["nav_step3"], key="nav_btn_3", use_container_width=True):
-                # Going back to Step 3: clear results only
+                # Back to Step 3: clear results only
                 st.session_state.show_results = False
                 st.session_state.results      = None
                 st.session_state.pdf_bytes    = None
@@ -646,7 +646,7 @@ if token and st.session_state.token_valid is None:
         st.session_state.token_data  = {"reason": "network_error"}
 
 # ─────────────────────────────────────────────────────────────
-# LOGO
+# LOGO  (from original newer version — base64 image)
 # ─────────────────────────────────────────────────────────────
 _logo_path = os.path.join(BASE_DIR, "assets", "zaitax_logo.png")
 with open(_logo_path, "rb") as _f:
@@ -803,9 +803,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.warning(t["disclaimer"])
 
-# ─────────────────────────────────────────────────────────────
-# NAVIGATION BAR  (shown above steps, only when steps unlocked)
-# ─────────────────────────────────────────────────────────────
+# CHANGE 3: Navigation bar — shown above all steps
 show_nav_bar()
 
 # ─────────────────────────────────────────────────────────────
@@ -814,7 +812,6 @@ show_nav_bar()
 eligible    = st.session_state.eligible
 active_step = st.session_state.active_step
 
-# Step 1 is expanded when: not yet eligible, OR user navigated back to it
 step1_expanded = (not eligible) or (active_step == 1)
 
 with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
