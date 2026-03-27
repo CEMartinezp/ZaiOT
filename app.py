@@ -481,6 +481,8 @@ _DEFAULTS = {
     "token_uses_left": None,
     # CHANGE 3: Navigation — which step is currently expanded: 1, 2, or 3
     "active_step": 1,
+    # Incremented on Start Over to force widgets to re-render fresh
+    "form_version": 0,
     # URL language flag (from original newer version)
     "_lang_from_url_applied": False,
 }
@@ -565,20 +567,21 @@ def show_buy_buttons(t):
 # ─────────────────────────────────────────────────────────────
 def _do_start_over():
     """
-    Full reset: clear all session state except token info, then rerun.
-    Preserves only token keys and language so the user stays authenticated
-    but starts with a completely blank form — all widgets reset visually.
+    Full reset: preserve only token + language state, increment form_version
+    so all widget keys change and every input renders blank on next rerun.
     """
-    token_keys = {
+    preserved = {
         k: st.session_state[k]
         for k in ["token_valid", "token_data", "token_consumed",
-                  "token_uses_left", "language", "_lang_from_url_applied"]
+                  "token_uses_left", "language", "_lang_from_url_applied",
+                  "form_version"]
         if k in st.session_state
     }
     st.session_state.clear()
-    for k, v in token_keys.items():
+    for k, v in preserved.items():
         st.session_state[k] = v
-    st.session_state.active_step = 1
+    st.session_state.active_step  = 1
+    st.session_state.form_version = preserved.get("form_version", 0) + 1
 
 
 def show_nav_bar():
@@ -828,6 +831,11 @@ st.markdown(f"""
 st.warning(t["disclaimer"])
 
 # ─────────────────────────────────────────────────────────────
+# NAVIGATION BAR — shown above Step 1
+# ─────────────────────────────────────────────────────────────
+show_nav_bar()
+
+# ─────────────────────────────────────────────────────────────
 # STEP 1 — ELIGIBILITY
 # ─────────────────────────────────────────────────────────────
 eligible    = st.session_state.eligible
@@ -852,7 +860,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     filing_status = st.radio(
         t["filing_status_label"], t["filing_status_options"],
         index=_radio_index("input_filing_val", t["filing_status_options"]),
-        horizontal=True, key="w_filing",
+        horizontal=True, key=f"w_filing_{st.session_state.form_version}",
     )
     st.session_state.input_filing_val = (
         t["filing_status_options"].index(filing_status) if filing_status is not None else None
@@ -861,7 +869,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     over_40 = st.radio(
         t["over_40_label"], t["answer_options"],
         index=_radio_index("input_over40_val", t["answer_options"]),
-        horizontal=True, help=t["over_40_help"], key="w_over40",
+        horizontal=True, help=t["over_40_help"], key=f"w_over40_{st.session_state.form_version}",
     )
     st.session_state.input_over40_val = (
         t["answer_options"].index(over_40) if over_40 is not None else None
@@ -870,7 +878,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     ot_1_5x = st.radio(
         t["ot_1_5x_label"], t["answer_options"],
         index=_radio_index("input_ot15x_val", t["answer_options"]),
-        horizontal=True, help=t["ot_1_5x_help"], key="w_ot15x",
+        horizontal=True, help=t["ot_1_5x_help"], key=f"w_ot15x_{st.session_state.form_version}",
     )
     st.session_state.input_ot15x_val = (
         t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
@@ -879,7 +887,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     ss_check = st.radio(
         t["ss_check_label"], t["answer_options"],
         index=_radio_index("input_ss_val", t["answer_options"]),
-        horizontal=True, help=t["ss_check_help"], key="w_ss",
+        horizontal=True, help=t["ss_check_help"], key=f"w_ss_{st.session_state.form_version}",
     )
     st.session_state.input_ss_val = (
         t["answer_options"].index(ss_check) if ss_check is not None else None
@@ -888,7 +896,7 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     itin_check = st.radio(
         t["itin_check_label"], t["answer_options"],
         index=_radio_index("input_itin_val", t["answer_options"]),
-        horizontal=True, help=t["itin_check_help"], key="w_itin",
+        horizontal=True, help=t["itin_check_help"], key=f"w_itin_{st.session_state.form_version}",
     )
     st.session_state.input_itin_val = (
         t["answer_options"].index(itin_check) if itin_check is not None else None
@@ -927,7 +935,7 @@ with st.expander(f"### {t['step2_title']}", expanded=step2_expanded):
     total_income = money_input(
         t["magi_label"],
         value=st.session_state.input_total_income,
-        step=1000.0, lang=lang, key="w_total_income",
+        step=1000.0, lang=lang, key=f"w_total_income_{st.session_state.form_version}",
     )
     st.session_state.input_total_income = total_income
 
@@ -963,7 +971,7 @@ with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
     method_choice = st.radio(
         t["choose_method_label"], t["choose_method_options"],
         index=st.session_state.input_method_index,
-        horizontal=True, key="w_method",
+        horizontal=True, key=f"w_method_{st.session_state.form_version}",
     )
     if method_choice is not None:
         st.session_state.input_method_index = (
@@ -979,12 +987,12 @@ with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
             ot_1_5_total = money_input(
                 t["ot_total_1_5_paid_label"], step=100.0,
                 value=st.session_state.input_ot_1_5_total,
-                help=t["ot_total_1_5_paid_help"], lang=lang, key="w_ot_1_5_total",
+                help=t["ot_total_1_5_paid_help"], lang=lang, key=f"w_ot_1_5_total_{st.session_state.form_version}",
             )
             ot_2_0_total = money_input(
                 t["ot_total_2_0_paid_label"], step=100.0,
                 value=st.session_state.input_ot_2_0_total,
-                help=t["ot_total_2_0_paid_help"], lang=lang, key="w_ot_2_0_total",
+                help=t["ot_total_2_0_paid_help"], lang=lang, key=f"w_ot_2_0_total_{st.session_state.form_version}",
             )
             st.session_state.input_ot_1_5_total = ot_1_5_total
             st.session_state.input_ot_2_0_total = ot_2_0_total
@@ -993,27 +1001,27 @@ with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
             regular_rate = money_input(
                 t["regular_rate_label"], step=0.5,
                 value=st.session_state.input_regular_rate,
-                help=t["regular_rate_help"], lang=lang, key="w_regular_rate",
+                help=t["regular_rate_help"], lang=lang, key=f"w_regular_rate_{st.session_state.form_version}",
             )
             actual_rate_1_5 = money_input(
                 t["actual_rate_1_5_label"], step=0.5,
                 value=st.session_state.input_actual_rate_1_5,
-                help=t["actual_rate_1_5_help"], lang=lang, key="w_actual_rate_1_5",
+                help=t["actual_rate_1_5_help"], lang=lang, key=f"w_actual_rate_1_5_{st.session_state.form_version}",
             )
             actual_rate_2_0 = money_input(
                 t["actual_rate_2_0_label"], step=0.5,
                 value=st.session_state.input_actual_rate_2_0,
-                help=t["actual_rate_2_0_help"], lang=lang, key="w_actual_rate_2_0",
+                help=t["actual_rate_2_0_help"], lang=lang, key=f"w_actual_rate_2_0_{st.session_state.form_version}",
             )
             ot_hours_1_5 = money_input(
                 t["ot_hours_1_5_label"], step=5.0, decimals=2,
                 value=st.session_state.input_ot_hours_1_5,
-                help=t["ot_hours_1_5_help"], lang=lang, currency=" ", key="w_ot_hours_1_5",
+                help=t["ot_hours_1_5_help"], lang=lang, currency=" ", key=f"w_ot_hours_1_5_{st.session_state.form_version}",
             )
             dt_hours_2_0 = money_input(
                 t["dt_hours_2_0_label"], step=5.0, decimals=2,
                 value=st.session_state.input_dt_hours_2_0,
-                help=t["dt_hours_2_0_help"], lang=lang, currency=" ", key="w_dt_hours_2_0",
+                help=t["dt_hours_2_0_help"], lang=lang, currency=" ", key=f"w_dt_hours_2_0_{st.session_state.form_version}",
             )
             st.session_state.input_regular_rate     = regular_rate
             st.session_state.input_actual_rate_1_5  = actual_rate_1_5
@@ -1047,7 +1055,7 @@ with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
                 ytd_override_1_5 = money_input(
                     t["ytd_override_label_1_5"], step=100.0,
                     value=st.session_state.input_ytd_override_1_5,
-                    help=t["ytd_override_help"], lang=lang, key="w_ytd_override_1_5",
+                    help=t["ytd_override_help"], lang=lang, key=f"w_ytd_override_1_5_{st.session_state.form_version}",
                 )
                 st.session_state.input_ytd_override_1_5 = ytd_override_1_5
             if mismatch_2_0:
@@ -1056,14 +1064,9 @@ with st.expander(f"### {t['step3_title']}", expanded=step3_expanded):
                 ytd_override_2_0 = money_input(
                     t["ytd_override_label_2_0"], step=100.0,
                     value=st.session_state.input_ytd_override_2_0,
-                    help=t["ytd_override_help"], lang=lang, key="w_ytd_override_2_0",
+                    help=t["ytd_override_help"], lang=lang, key=f"w_ytd_override_2_0_{st.session_state.form_version}",
                 )
                 st.session_state.input_ytd_override_2_0 = ytd_override_2_0
-
-# ─────────────────────────────────────────────────────────────
-# NAVIGATION BAR — shown after completed steps, before calculate
-# ─────────────────────────────────────────────────────────────
-show_nav_bar()
 
 # ─────────────────────────────────────────────────────────────
 # CALCULATE BUTTON
