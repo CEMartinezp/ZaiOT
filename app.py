@@ -43,7 +43,9 @@ div[data-testid="stButton"] > button {
 }
 div[data-testid="stButton"] > button:hover  { background-color:#27ae60!important;transform:translateY(-1px); }
 div[data-testid="stButton"] > button:active { background-color:#219150!important; }
-div[data-testid="stButton"] > button:disabled { background-color:#2ecc71!important;opacity:0.6!important; }
+div[data-testid="stButton"] > button:disabled {
+    background-color:#95a5a6!important;opacity:0.7!important;cursor:not-allowed!important;
+}
 .plan-card-text        { color:var(--text-color)!important; }
 .plan-card-sub         { color:var(--secondary-text-color)!important; }
 .plan-card-li          { color:var(--text-color)!important;opacity:0.85; }
@@ -255,8 +257,6 @@ texts = {
         "language_options": ["Español", "English"],
         "button_continue": "Continuar",
         "error_pdf_generation": "❌ Error al generar el PDF: {}",
-        "step1_summary_prefix": "Resumen:",
-        "step2_summary_prefix": "Ingreso total:",
         "edit_hint": "Usa la barra de navegación para volver a este paso y editarlo.",
         # Navigation
         "nav_step1": "📋 Paso 1: Elegibilidad",
@@ -445,8 +445,6 @@ texts = {
         "language_options": ["Spanish", "English"],
         "button_continue": "Continue",
         "error_pdf_generation": "❌ Error generating PDF: {}",
-        "step1_summary_prefix": "Summary:",
-        "step2_summary_prefix": "Total income:",
         "edit_hint": "Use the navigation bar to return to this step and edit it.",
         # Navigation
         "nav_step1": "📋 Step 1: Eligibility",
@@ -595,8 +593,8 @@ def _do_start_over():
 
 def show_nav_bar(position="top"):
     """
-    Plain Streamlit navigation bar placed at the bottom of the page.
-    No JS, no CSS tricks. Shows reached steps + Start Over button.
+    Navigation controls for the confirmed step flow.
+    Going back invalidates downstream confirmations without erasing inputs.
     """
     eligible        = st.session_state.eligible
     completed_step2 = st.session_state.completed_step_2
@@ -624,6 +622,7 @@ def show_nav_bar(position="top"):
             use_container_width=True,
             disabled=(st.session_state.active_step == 1),
         ):
+            # Returning to Step 1 requires re-confirming every downstream step.
             st.session_state.eligible = False
             st.session_state.completed_step_2 = False
             _clear_results_state()
@@ -639,6 +638,7 @@ def show_nav_bar(position="top"):
                 use_container_width=True,
                 disabled=(st.session_state.active_step == 2),
             ):
+                # Returning to Step 2 keeps the answers but invalidates Step 3/results.
                 st.session_state.completed_step_2 = False
                 _clear_results_state()
                 st.session_state.active_step = 2
@@ -665,20 +665,6 @@ def show_nav_bar(position="top"):
         ):
             _do_start_over()
             st.rerun()
-
-
-def _step1_summary_text(t):
-    filing_status = t["filing_status_options"][st.session_state.input_filing_val] if st.session_state.input_filing_val is not None else "--"
-    over_40 = t["answer_options"][st.session_state.input_over40_val] if st.session_state.input_over40_val is not None else "--"
-    ot_1_5x = t["answer_options"][st.session_state.input_ot15x_val] if st.session_state.input_ot15x_val is not None else "--"
-    ss_check = t["answer_options"][st.session_state.input_ss_val] if st.session_state.input_ss_val is not None else "--"
-    itin_check = t["answer_options"][st.session_state.input_itin_val] if st.session_state.input_itin_val is not None else "--"
-    filing_label = "Filing status" if st.session_state.language == "en" else "Estado"
-    return (
-        f"**{t['step1_summary_prefix']}** "
-        f"{filing_label}: {filing_status} | >40h: {over_40} | 1.5x: {ot_1_5x} | SSN: {ss_check} | ITIN: {itin_check}"
-    )
-
 
 def _clear_results_state():
     st.session_state.show_results = False
@@ -893,6 +879,7 @@ step1_expanded = (active_step == 1)
 
 with st.expander(f"{t['step1_title']}", expanded=step1_expanded):
     if active_step != 1 and eligible:
+        # Confirmed steps stay visible but read-only until reactivated from the nav bar.
         st.success(t["eligible_blocked_info"])
         filing_status = st.radio(
             t["filing_status_label"], t["filing_status_options"],
@@ -996,6 +983,7 @@ with st.expander(f"{t['step1_title']}", expanded=step1_expanded):
             type="secondary",
             use_container_width=True,
         ):
+            # Step 1 confirmation controls access to every downstream step.
             if not all_answered:
                 st.error(t["step1_info"])
             elif auto_eligible:
@@ -1021,8 +1009,9 @@ step2_expanded = (active_step == 2)
 
 with st.expander(f"{t['step2_title']}", expanded=step2_expanded):
     if active_step != 2 and st.session_state.completed_step_2:
+        # Keep the confirmed value visible, but prevent edits outside active navigation.
         st.success(t["step2_completed_msg"])
-        money_input(
+        total_income = money_input(
             t["magi_label"],
             value=st.session_state.input_total_income,
             step=1000.0, lang=lang, key=f"w_total_income_locked_{st.session_state.form_version}",
@@ -1040,6 +1029,7 @@ with st.expander(f"{t['step2_title']}", expanded=step2_expanded):
 
         if active_step == 2:
             if st.button(t["button_continue"], type="secondary", use_container_width=True):
+                # Reconfirming Step 2 unlocks Step 3 again from the stored income input.
                 if total_income <= 0:
                     st.error(t["error_missing_total_income"])
                 else:
