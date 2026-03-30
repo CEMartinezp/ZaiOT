@@ -654,6 +654,12 @@ def _step1_summary_text(t):
     )
 
 
+def _clear_results_state():
+    st.session_state.show_results = False
+    st.session_state.results      = None
+    st.session_state.pdf_bytes    = None
+
+
 # ─────────────────────────────────────────────────────────────
 # TOKEN VALIDATION  (once per session)
 # ─────────────────────────────────────────────────────────────
@@ -848,82 +854,85 @@ active_step = st.session_state.active_step
 step1_expanded = (active_step == 1)
 
 with st.expander(f"{t['step1_title']}", expanded=step1_expanded):
-    st.info(t["step1_info"])
+    if active_step != 1 and eligible:
+        st.success(f"{t['eligible_blocked_info']}\n\n{_step1_summary_text(t)}")
+        st.caption(t["edit_hint"])
+    else:
+        st.info(t["step1_info"])
 
-    def _radio_index(saved_key, options):
-        saved = st.session_state.get(saved_key)
-        if saved is None:
-            return None
-        if isinstance(saved, int) and 0 <= saved < len(options):
-            return saved
-        try:
-            return options.index(saved)
-        except ValueError:
-            return None
+        def _radio_index(saved_key, options):
+            saved = st.session_state.get(saved_key)
+            if saved is None:
+                return None
+            if isinstance(saved, int) and 0 <= saved < len(options):
+                return saved
+            try:
+                return options.index(saved)
+            except ValueError:
+                return None
 
-    filing_status = st.radio(
-        t["filing_status_label"], t["filing_status_options"],
-        index=_radio_index("input_filing_val", t["filing_status_options"]),
-        horizontal=True, key=f"w_filing_{st.session_state.form_version}",
-    )
-    st.session_state.input_filing_val = (
-        t["filing_status_options"].index(filing_status) if filing_status is not None else None
-    )
+        filing_status = st.radio(
+            t["filing_status_label"], t["filing_status_options"],
+            index=_radio_index("input_filing_val", t["filing_status_options"]),
+            horizontal=True, key=f"w_filing_{st.session_state.form_version}",
+        )
+        st.session_state.input_filing_val = (
+            t["filing_status_options"].index(filing_status) if filing_status is not None else None
+        )
 
-    over_40 = st.radio(
-        t["over_40_label"], t["answer_options"],
-        index=_radio_index("input_over40_val", t["answer_options"]),
-        horizontal=True, help=t["over_40_help"], key=f"w_over40_{st.session_state.form_version}",
-    )
-    st.session_state.input_over40_val = (
-        t["answer_options"].index(over_40) if over_40 is not None else None
-    )
+        over_40 = st.radio(
+            t["over_40_label"], t["answer_options"],
+            index=_radio_index("input_over40_val", t["answer_options"]),
+            horizontal=True, help=t["over_40_help"], key=f"w_over40_{st.session_state.form_version}",
+        )
+        st.session_state.input_over40_val = (
+            t["answer_options"].index(over_40) if over_40 is not None else None
+        )
 
-    ot_1_5x = st.radio(
-        t["ot_1_5x_label"], t["answer_options"],
-        index=_radio_index("input_ot15x_val", t["answer_options"]),
-        horizontal=True, help=t["ot_1_5x_help"], key=f"w_ot15x_{st.session_state.form_version}",
-    )
-    st.session_state.input_ot15x_val = (
-        t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
-    )
+        ot_1_5x = st.radio(
+            t["ot_1_5x_label"], t["answer_options"],
+            index=_radio_index("input_ot15x_val", t["answer_options"]),
+            horizontal=True, help=t["ot_1_5x_help"], key=f"w_ot15x_{st.session_state.form_version}",
+        )
+        st.session_state.input_ot15x_val = (
+            t["answer_options"].index(ot_1_5x) if ot_1_5x is not None else None
+        )
 
-    ss_check = st.radio(
-        t["ss_check_label"], t["answer_options"],
-        index=_radio_index("input_ss_val", t["answer_options"]),
-        horizontal=True, help=t["ss_check_help"], key=f"w_ss_{st.session_state.form_version}",
-    )
-    st.session_state.input_ss_val = (
-        t["answer_options"].index(ss_check) if ss_check is not None else None
-    )
+        ss_check = st.radio(
+            t["ss_check_label"], t["answer_options"],
+            index=_radio_index("input_ss_val", t["answer_options"]),
+            horizontal=True, help=t["ss_check_help"], key=f"w_ss_{st.session_state.form_version}",
+        )
+        st.session_state.input_ss_val = (
+            t["answer_options"].index(ss_check) if ss_check is not None else None
+        )
 
-    itin_check = st.radio(
-        t["itin_check_label"], t["answer_options"],
-        index=_radio_index("input_itin_val", t["answer_options"]),
-        horizontal=True, help=t["itin_check_help"], key=f"w_itin_{st.session_state.form_version}",
-    )
-    st.session_state.input_itin_val = (
-        t["answer_options"].index(itin_check) if itin_check is not None else None
-    )
+        itin_check = st.radio(
+            t["itin_check_label"], t["answer_options"],
+            index=_radio_index("input_itin_val", t["answer_options"]),
+            horizontal=True, help=t["itin_check_help"], key=f"w_itin_{st.session_state.form_version}",
+        )
+        st.session_state.input_itin_val = (
+            t["answer_options"].index(itin_check) if itin_check is not None else None
+        )
 
-    all_answered = all(x is not None for x in [filing_status, over_40, ot_1_5x, ss_check, itin_check])
-    auto_eligible = (
-        all_answered and
-        filing_status != t["filing_status_options"][3] and
-        over_40    == t["answer_options"][0] and
-        ot_1_5x    == t["answer_options"][0] and
-        ss_check   == t["answer_options"][0] and
-        itin_check == t["answer_options"][1]
-    )
+        all_answered = all(x is not None for x in [filing_status, over_40, ot_1_5x, ss_check, itin_check])
+        auto_eligible = (
+            all_answered and
+            filing_status != t["filing_status_options"][3] and
+            over_40    == t["answer_options"][0] and
+            ot_1_5x    == t["answer_options"][0] and
+            ss_check   == t["answer_options"][0] and
+            itin_check == t["answer_options"][1]
+        )
 
-    if eligible:
-        st.info(t["eligible_blocked_info"])
-    elif auto_eligible:
-        st.success(t["eligible_blocked_info"])
-    elif all_answered:
-        st.warning(t["unlock_message"])
+        if eligible:
+            st.info(t["eligible_blocked_info"])
+        elif auto_eligible:
+            st.success(t["eligible_blocked_info"])
+        elif all_answered:
+            st.warning(t["unlock_message"])
 
-    if active_step == 1:
         if st.button(
             t["button_continue"],
             key=f"step1_continue_{st.session_state.form_version}",
@@ -933,15 +942,14 @@ with st.expander(f"{t['step1_title']}", expanded=step1_expanded):
             if not all_answered:
                 st.error(t["step1_info"])
             elif auto_eligible:
+                _clear_results_state()
                 st.session_state.eligible    = True
                 st.session_state.active_step = 2
                 st.rerun()
             else:
                 st.session_state.eligible         = False
                 st.session_state.completed_step_2 = False
-                st.session_state.show_results     = False
-                st.session_state.results          = None
-                st.session_state.pdf_bytes        = None
+                _clear_results_state()
                 st.session_state.active_step      = 1
                 st.error(t["step1_ineligible_error"])
 
@@ -954,24 +962,32 @@ if not eligible:
 step2_expanded = (active_step == 2)
 
 with st.expander(f"{t['step2_title']}", expanded=step2_expanded):
-    st.info(t["step2_info"])
-    total_income = money_input(
-        t["magi_label"],
-        value=st.session_state.input_total_income,
-        step=1000.0, lang=lang, key=f"w_total_income_{st.session_state.form_version}",
-    )
-    st.session_state.input_total_income = total_income
-
-    if active_step == 2 and not st.session_state.completed_step_2:
-        if st.button(t["button_continue"], type="secondary", use_container_width=True):
-            if total_income <= 0:
-                st.error(t["error_missing_total_income"])
-            else:
-                st.session_state.completed_step_2 = True
-                st.session_state.active_step      = 3
-                st.rerun()
+    if active_step != 2 and st.session_state.completed_step_2:
+        st.success(
+            f"{t['step2_completed_msg']}\n\n**{t['step2_summary_prefix']}** "
+            f"{fmt_num(st.session_state.input_total_income or 0, lang)}"
+        )
+        st.caption(t["edit_hint"])
     else:
-        st.success(t["step2_completed_msg"])
+        st.info(t["step2_info"])
+        total_income = money_input(
+            t["magi_label"],
+            value=st.session_state.input_total_income,
+            step=1000.0, lang=lang, key=f"w_total_income_{st.session_state.form_version}",
+        )
+        st.session_state.input_total_income = total_income
+
+        if active_step == 2:
+            if st.button(t["button_continue"], type="secondary", use_container_width=True):
+                if total_income <= 0:
+                    st.error(t["error_missing_total_income"])
+                else:
+                    _clear_results_state()
+                    st.session_state.completed_step_2 = True
+                    st.session_state.active_step      = 3
+                    st.rerun()
+        else:
+            st.success(t["step2_completed_msg"])
 
 if not st.session_state.completed_step_2:
     st.stop()
