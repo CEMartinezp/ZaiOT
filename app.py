@@ -919,26 +919,27 @@ with st.expander(f"### {t['step1_title']}", expanded=step1_expanded):
     elif all_answered:
         st.warning(t["unlock_message"])
 
-    if st.button(
-        t["button_continue"],
-        key=f"step1_continue_{st.session_state.form_version}",
-        type="secondary",
-        use_container_width=True,
-    ):
-        if not all_answered:
-            st.error(t["step1_info"])
-        elif auto_eligible:
-            st.session_state.eligible    = True
-            st.session_state.active_step = 2
-            st.rerun()
-        else:
-            st.session_state.eligible         = False
-            st.session_state.completed_step_2 = False
-            st.session_state.show_results     = False
-            st.session_state.results          = None
-            st.session_state.pdf_bytes        = None
-            st.session_state.active_step      = 1
-            st.rerun()
+    if active_step == 1:
+        if st.button(
+            t["button_continue"],
+            key=f"step1_continue_{st.session_state.form_version}",
+            type="secondary",
+            use_container_width=True,
+        ):
+            if not all_answered:
+                st.error(t["step1_info"])
+            elif auto_eligible:
+                st.session_state.eligible    = True
+                st.session_state.active_step = 2
+                st.rerun()
+            else:
+                st.session_state.eligible         = False
+                st.session_state.completed_step_2 = False
+                st.session_state.show_results     = False
+                st.session_state.results          = None
+                st.session_state.pdf_bytes        = None
+                st.session_state.active_step      = 1
+                st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # STEP 2 — INCOME
@@ -957,7 +958,7 @@ with st.expander(f"### {t['step2_title']}", expanded=step2_expanded):
     )
     st.session_state.input_total_income = total_income
 
-    if not st.session_state.completed_step_2:
+    if active_step == 2 and not st.session_state.completed_step_2:
         if st.button(t["button_continue"], type="secondary", use_container_width=True):
             if total_income <= 0:
                 st.error(t["error_missing_total_income"])
