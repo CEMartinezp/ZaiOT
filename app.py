@@ -593,7 +593,7 @@ def _do_start_over():
     st.session_state.form_version = preserved.get("form_version", 0) + 1
 
 
-def show_nav_bar():
+def show_nav_bar(position="top"):
     """
     Plain Streamlit navigation bar placed at the bottom of the page.
     No JS, no CSS tricks. Shows reached steps + Start Over button.
@@ -605,11 +605,12 @@ def show_nav_bar():
     show_s3 = eligible and completed_step2
 
     st.markdown("---")
-    st.markdown(
-        f"<p style='margin-bottom:6px;font-size:13px;color:var(--secondary-text-color);'>"
-        f"<b>{t['nav_label']}</b></p>",
-        unsafe_allow_html=True,
-    )
+    if position == "top":
+        st.markdown(
+            f"<p style='margin-bottom:6px;font-size:13px;color:var(--secondary-text-color);'>"
+            f"<b>{t['nav_label']}</b></p>",
+            unsafe_allow_html=True,
+        )
 
     num_step_btns = 1 + (1 if show_s2 else 0) + (1 if show_s3 else 0)
     col_widths = [1] * num_step_btns + [1, 3]  # start-over + spacer
@@ -617,27 +618,46 @@ def show_nav_bar():
     idx = 0
 
     with cols[idx]:
-        if st.button(t["nav_step1"], key="nav_btn_1", use_container_width=True):
+        if st.button(
+            t["nav_step1"],
+            key=f"nav_{position}_btn_1",
+            use_container_width=True,
+            disabled=(st.session_state.active_step == 1),
+        ):
             st.session_state.active_step = 1
             st.rerun()
     idx += 1
 
     if show_s2:
         with cols[idx]:
-            if st.button(t["nav_step2"], key="nav_btn_2", use_container_width=True):
+            if st.button(
+                t["nav_step2"],
+                key=f"nav_{position}_btn_2",
+                use_container_width=True,
+                disabled=(st.session_state.active_step == 2),
+            ):
                 st.session_state.active_step = 2
                 st.rerun()
         idx += 1
 
     if show_s3:
         with cols[idx]:
-            if st.button(t["nav_step3"], key="nav_btn_3", use_container_width=True):
+            if st.button(
+                t["nav_step3"],
+                key=f"nav_{position}_btn_3",
+                use_container_width=True,
+                disabled=(st.session_state.active_step == 3),
+            ):
                 st.session_state.active_step = 3
                 st.rerun()
         idx += 1
 
     with cols[idx]:
-        if st.button(t["nav_start_over"], key="nav_btn_start_over", use_container_width=True):
+        if st.button(
+            t["nav_start_over"],
+            key=f"nav_{position}_btn_start_over",
+            use_container_width=True,
+        ):
             _do_start_over()
             st.rerun()
 
@@ -856,7 +876,7 @@ st.warning(t["disclaimer"])
 # ─────────────────────────────────────────────────────────────
 # NAVIGATION BAR — shown above Step 1
 # ─────────────────────────────────────────────────────────────
-show_nav_bar()
+show_nav_bar(position="top")
 
 # ─────────────────────────────────────────────────────────────
 # STEP 1 — ELIGIBILITY
@@ -989,6 +1009,7 @@ with st.expander(f"{t['step1_title']}", expanded=step1_expanded):
 # STEP 2 — INCOME
 # ─────────────────────────────────────────────────────────────
 if not eligible:
+    show_nav_bar(position="bottom")
     st.stop()
 
 step2_expanded = (active_step == 2)
@@ -1025,6 +1046,7 @@ with st.expander(f"{t['step2_title']}", expanded=step2_expanded):
             st.success(t["step2_completed_msg"])
 
 if not st.session_state.completed_step_2:
+    show_nav_bar(position="bottom")
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
@@ -1054,6 +1076,7 @@ with st.expander(f"{t['step3_title']}", expanded=step3_expanded):
 
     if not method_choice:
         st.warning(t["warning_no_method_chosen"])
+        show_nav_bar(position="bottom")
         st.stop()
 
     if method_choice == t["choose_method_options"][0]:
@@ -1286,6 +1309,8 @@ else:
 # ─────────────────────────────────────────────────────────────
 # RESULTS
 # ─────────────────────────────────────────────────────────────
+show_nav_bar(position="bottom")
+
 if not st.session_state.show_results:
     st.stop()
 
